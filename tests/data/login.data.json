@@ -1,0 +1,8 @@
+{
+  "validationMessages": {
+    "emailRequired": "Please enter email address",
+    "passwordRequired": "Please enter password",
+    "emailInvalid": "Please enter a valid email address",
+    "authFailed": "Invalid Email or Password"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "validation": {
+    "companyName": "Ankit QA AC",
+    "email": "ankitqa.iihglobal+unq321@gmail.com",
+    "password": "Pa$$w0rd!",
+    "confirmPassword": "Pa$$w0rd!",
+    "mismatchConfirmPassword": "DifferentPassword123!",
+    "duplicateCompanyName": "Rodgers and Horton Co",
+    "duplicateCompanyEmail": "ankitqa.iihglobal+f15062@gmail.com"
+  },
+  "validationMessages": {
+    "nameRequired": "Please enter name",
+    "companyNameRequired": "Please enter a valid name",
+    "emailRequired": "Please enter email address",
+    "emailInvalid": "Please enter a valid email address",
+    "passwordRequired": "Please enter a valid password",
+    "passwordLowercase": "Use atleast one lowercase character",
+    "passwordUppercase": "Use atleast one uppercase character",
+    "passwordSpecial": "Use atleast one special character",
+    "passwordNumber": "Use atleast one number",
+    "confirmPasswordRequired": "Please enter a valid Confirm password",
+    "confirmPasswordMismatch": "Confirm password does not match with entered password"
+  },
+  "staticText": {
+    "invoiceSentTitle": "Invoice Sent!"
+  }
+}

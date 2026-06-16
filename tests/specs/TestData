@@ -1,0 +1,57 @@
+ // Test 2: Login and Subscription Verification with Static Registered User
+  test(
+    'Login and Subscription Verification with Static Registered User',
+    async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      const adhocPage = new AdhocSearchPage(page);
+      const userMgmtPage = new UserManagementPage(page);
+
+      const staticEmail = 'ankitqa.iihglobal+1781614630152@gmail.com';
+      const staticPassword = 'Password123!';
+
+      // Navigate directly to the Login page (as the entry point for login-only test)
+      console.log('\n── Step 1: Navigating to Login Page ──');
+      await loginPage.navigateToLogin();
+      await expect(page).toHaveURL(/.*\/login/);
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 1. Login with static registered user
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log(`\n── Step 2: Logging in with Static User (${staticEmail}) ──`);
+      await loginPage.login(staticEmail, staticPassword);
+
+      // Assert redirection to Adhoc Search page
+      await expect(page).toHaveURL(/.*\/adhoc-search/);
+      await expect(adhocPage.basicSearchInput).toBeVisible();
+      console.log('✓ Logged in successfully and asserted Adhoc Search page');
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 2. Navigate to My Subscription under Company Settings via clicks
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 3: Navigating to User Management > My Subscription via clicks ──');
+
+      // Open profile dropdown by clicking the Avatar in the header
+      const avatar = page.locator('.MuiAvatar-root').first();
+      await expect(avatar).toBeVisible();
+      await avatar.click();
+
+      // Click "My Subscription" from the profile dropdown menu
+      const mySubMenuItem = page.getByRole('menuitem', { name: /my subscription/i });
+      await expect(mySubMenuItem).toBeVisible();
+      await mySubMenuItem.click();
+
+      // Verify redirection to user-management page
+      await expect(page).toHaveURL(/.*\/user-management.*/);
+
+      // Click the Subscription tab explicitly to ensure it is active
+      await userMgmtPage.tab_Subscription.click();
+
+      // Assert plan details on subscription page
+      const expectedPlan = staticEmail === 'ankitqa.iihglobal+1781614630152@gmail.com' ? /free/i : /expert/i;
+      const expectedStatus = /active|renewable|non renewable/i;
+
+      await expect(userMgmtPage.sub_planNameValue).toContainText(expectedPlan);
+      await expect(userMgmtPage.sub_statusChip).toContainText(expectedStatus);
+      console.log(`✓ Navigated to My Subscription page and verified active ${staticEmail === 'ankitqa.iihglobal+1781614630152@gmail.com' ? 'Free' : 'Expert'} plan`);
+    }
+  );

@@ -1,0 +1,9 @@
+{
+  "tooltips": {
+    "fullAccess": "Full Access users can view and manage all features, including editing and administrative actions.",
+    "readOnly": "Read Only users can view data but cannot edit records, make updates, or change settings."
+  },
+  "validationMessages": {
+    "selectSubscription": "Please select a subscription to continue"
+  }
+}

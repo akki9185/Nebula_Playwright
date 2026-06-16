@@ -1,0 +1,24 @@
+{
+  "name": "nebula_playwright",
+  "version": "1.0.0",
+  "description": "Standalone Playwright E2E Automation Testing Suite for Nebula App",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:report": "npx playwright show-report"
+  },
+  "keywords": [
+    "playwright",
+    "automation",
+    "testing",
+    "e2e"
+  ],
+  "author": "IIH Global",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^20.17.15",
+    "imapflow": "^1.4.1"
+  }
+}
