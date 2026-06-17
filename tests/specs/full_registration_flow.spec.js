@@ -1,20 +1,17 @@
 /**
  * MASTER REGISTRATION & LOGIN FLOW TEST (FREE PLAN)
  *
- * A single E2E test that performs exactly ONE registration from start to finish:
- *  1. Navigates to Subscription (the initial entry point), verifies cards and validation.
- *  2. Selects Free plan, verifies free plan restrictions on subscription page.
- *  3. Navigates to Registration, verifies fields and validation (mismatched password, empty name, terms check)
- *     on the form BEFORE submitting.
- *  4. Fills valid unique details and submits (ONLY one registration submission).
- *  5. Retrieves OTP from Gmail, submits OTP.
- *  6. Verifies welcome email.
- *  7. Clicks "Email invoice and Pay" and redirects to /login.
- *  8. Logs the registered credentials clearly in the console.
- *  9. Performs Login with the newly registered user credentials.
- *  10. Asserts successful redirect to the Adhoc Search page.
- *  11. Navigates to User Management > Subscription tab by clicking the User Avatar and selecting "My Subscription".
- *  12. Verifies Free plan status.
+ * A single positive E2E test that performs exactly ONE registration from start to finish:
+ *  1. Navigates to Subscription, verifies plan cards, selects Free plan.
+ *  2. Fills registration form with valid unique details and submits.
+ *  3. Retrieves OTP from Gmail (filtered by recipient address), submits OTP.
+ *  4. Verifies welcome email, clicks "Email invoice and Pay", redirects to /login.
+ *  5. Logs the registered credentials clearly in the console.
+ *  6. Logs in with the newly registered user credentials.
+ *  7. Asserts successful redirect to the Adhoc Search page.
+ *  8. Navigates to Company Settings > My Subscription via Avatar dropdown.
+ *  9. Verifies Free plan name, Search Goals (EC), subscription table details,
+ *     expiry date (1 month from registration), seat counts, and goal status.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -26,15 +23,13 @@ const { UserManagementPage } = require('../pages/user_management.page');
 const { pollGmailForMessage } = require('../utils/gmail.util');
 const registerData = require('../data/register.data.json');
 
-const GMAIL_ADDRESS = 'ankitqa.iihglobal@gmail.com';
-const GMAIL_APP_PASSWORD = 'aglv lnoi qlxt rxbl';
-
-async function pollEmail(subjectQuery, since) {
+async function pollEmail(subjectQuery, since, to) {
   return pollGmailForMessage({
-    emailAddress: GMAIL_ADDRESS,
-    appPassword: GMAIL_APP_PASSWORD,
+    emailAddress: registerData.gmail.emailAddress,
+    appPassword: registerData.gmail.appPassword,
     subjectQuery,
     since,
+    to,
   });
 }
 
@@ -83,9 +78,9 @@ test.describe('Master Registration and Login Flow', () => {
       await expect(page).toHaveURL(/.*\/register/);
 
       // ─────────────────────────────────────────────────────────────────────────
-      // 2. Registration Form UI & Pre-Submit Validations
+      // 2. Positive E2E Registration Submission & Email Verification
       // ─────────────────────────────────────────────────────────────────────────
-      console.log('\n── Step 2: Registration Form Validation ──');
+      console.log('\n── Step 2: Filling Registration Form (Positive Case) ──');
       await expect(registerPage.companyNameInput).toBeVisible();
       await expect(registerPage.emailInput).toBeVisible();
       await expect(registerPage.nameInput).toBeVisible();
@@ -101,30 +96,7 @@ test.describe('Master Registration and Login Flow', () => {
       const email = `ankitqa.iihglobal+${uid}@gmail.com`;
       const password = registerData.validation.password;
 
-      // Validation A: Password mismatch
-      await registerPage.fillRegistrationForm({
-        companyName,
-        email,
-        name: 'Free User',
-        password,
-        confirmPassword: registerData.validation.mismatchConfirmPassword
-      });
-      await registerPage.acceptTerms();
-      await expect(registerPage.submitButton).toBeDisabled();
-      console.log('✓ Submit disabled on password mismatch');
-
-      // Validation B: Empty Name
-      await registerPage.fillRegistrationForm({
-        companyName,
-        email,
-        name: '',
-        password,
-        confirmPassword: password
-      });
-      await expect(registerPage.submitButton).toBeDisabled();
-      console.log('✓ Submit disabled when Name is empty');
-
-      // Validation C: Terms checkbox unchecked
+      // Fill valid details
       await registerPage.fillRegistrationForm({
         companyName,
         email,
@@ -132,26 +104,18 @@ test.describe('Master Registration and Login Flow', () => {
         password,
         confirmPassword: password
       });
-      // Uncheck terms if checked
-      if (await registerPage.termsCheckbox.isChecked()) {
-        await registerPage.termsCheckbox.click({ force: true });
-      }
-      await expect(registerPage.submitButton).toBeDisabled();
-      console.log('✓ Submit disabled when Terms checkbox is unchecked');
 
-      // ─────────────────────────────────────────────────────────────────────────
-      // 3. E2E Registration Submission & Email Verification
-      // ─────────────────────────────────────────────────────────────────────────
-      console.log('\n── Step 3: Submitting Registration ──');
+      // Accept terms
       await registerPage.acceptTerms();
       await expect(registerPage.submitButton).toBeEnabled();
 
+      console.log('\n── Step 3: Submitting Registration ──');
       const testStartTime = new Date();
       await registerPage.clickSubmit();
       console.log('✓ Registration submitted. Polling for OTP email...');
 
       // Retrieve OTP from Gmail
-      const otpBody = await pollEmail('Your Verification code for Company Registration', testStartTime);
+      const otpBody = await pollEmail('Your Verification code for Company Registration', testStartTime, email);
       expect(otpBody, 'OTP email not received').not.toBe('');
       const otpMatch = otpBody.match(/\b\d{6}\b/);
       expect(otpMatch, 'Could not extract OTP').not.toBeNull();
@@ -164,7 +128,7 @@ test.describe('Master Registration and Login Flow', () => {
       await registerPage.clickSubmit();
 
       // Verify welcome email
-      const welcomeBody = await pollEmail('User registration', welcomeStart);
+      const welcomeBody = await pollEmail('User registration', welcomeStart, email);
       expect(welcomeBody, 'Welcome email not received').not.toBe('');
       console.log('✓ Welcome email received');
 
@@ -178,6 +142,7 @@ test.describe('Master Registration and Login Flow', () => {
       // Log the credentials
       console.log('\n==================================================');
       console.log('REGISTERED CREDENTIALS');
+      console.log(`Company Name: ${companyName}`);
       console.log(`Email:    ${email}`);
       console.log(`Password: ${password}`);
       console.log('==================================================\n');
@@ -201,7 +166,7 @@ test.describe('Master Registration and Login Flow', () => {
       // ─────────────────────────────────────────────────────────────────────────
       // 5. Navigate to My Subscription under Company Settings via clicks
       // ─────────────────────────────────────────────────────────────────────────
-      console.log('\n── Step 5: Navigating to User Management > My Subscription via clicks ──');
+      console.log('\n── Step 5: Navigating to Company Settings > My Subscription via clicks ──');
 
       // Open profile dropdown by clicking the Avatar in the header
       const avatar = page.locator('.MuiAvatar-root').first();
@@ -222,11 +187,22 @@ test.describe('Master Registration and Login Flow', () => {
       // Assert free plan details on subscription page
       await expect(userMgmtPage.sub_planNameValue).toContainText(/free/i);
       await expect(userMgmtPage.sub_searchGoalsBox).toContainText(/ec/i);
-      
+
       // Assert Subscription Table Cells
       await expect(userMgmtPage.sub_cellName).toContainText(/free/i);
       await expect(userMgmtPage.sub_cellDesc).toContainText(/free starter plan/i);
       await expect(userMgmtPage.sub_cellStatus).toContainText(/non renewable/i);
+
+      // Verify Expiry Date is 1 month from registration date
+      const renewalDateText = await userMgmtPage.sub_cellRenewalDate.innerText();
+      const expiryDateParsed = new Date(renewalDateText);
+      const registrationDate = new Date();
+      const diffTime = Math.abs(expiryDateParsed - registrationDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      console.log(`✓ Expiry date on UI: ${renewalDateText} (Difference: ${diffDays} days from registration)`);
+      expect(diffDays).toBeGreaterThanOrEqual(28);
+      expect(diffDays).toBeLessThanOrEqual(32);
+
       await expect(userMgmtPage.sub_cellFullAccessSeats).toContainText('2');
       await expect(userMgmtPage.sub_cellFullAccessAvailable).toContainText('1');
       await expect(userMgmtPage.sub_cellReadOnlySeats).toContainText('0');
@@ -235,7 +211,7 @@ test.describe('Master Registration and Login Flow', () => {
       // Assert Subscribed Search Goals at the bottom
       await expect(userMgmtPage.sub_subscribedSearchGoals).toContainText(/ec/i);
       await expect(userMgmtPage.sub_subscribedSearchGoals).toContainText(/non renewable/i);
-      
+
       console.log('✓ Navigated to My Subscription page and verified all details of the active Free plan');
     }
   );

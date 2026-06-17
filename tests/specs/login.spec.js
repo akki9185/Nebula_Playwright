@@ -6,9 +6,7 @@ const { pollGmailForMessage } = require('../utils/gmail.util');
 const loginData = require('../data/login.data.json');
 const registerData = require('../data/register.data.json');
 
-// ─── Gmail Credentials ────────────────────────────────────────────────────────
-const GMAIL_ADDRESS = 'ankitqa.iihglobal@gmail.com';
-const GMAIL_APP_PASSWORD = 'aglv lnoi qlxt rxbl';
+
 
 test.describe('Login Page E2E Tests', () => {
   let loginPage;
@@ -96,8 +94,8 @@ test.describe('Login Page E2E Tests', () => {
 
     // Poll Gmail inbox for the OTP email and extract the 6-digit code
     const otpEmailBody = await pollGmailForMessage({
-      emailAddress: GMAIL_ADDRESS,
-      appPassword: GMAIL_APP_PASSWORD,
+      emailAddress: registerData.gmail.emailAddress,
+      appPassword: registerData.gmail.appPassword,
       subjectQuery: 'Your Verification code for Company Registration',
       since: testStartTime,
     });

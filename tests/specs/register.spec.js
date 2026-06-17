@@ -4,9 +4,6 @@ const { SubscriptionPage } = require('../pages/subscription.page');
 const { pollGmailForMessage } = require('../utils/gmail.util');
 const registerData = require('../data/register.data.json');
 
-// ─── Gmail Credentials ────────────────────────────────────────────────────────
-const GMAIL_ADDRESS = 'ankitqa.iihglobal@gmail.com';
-const GMAIL_APP_PASSWORD = 'aglv lnoi qlxt rxbl';
 
 
 test.describe('Registration Page E2E Tests', () => {
@@ -230,8 +227,8 @@ test.describe('Registration Page E2E Tests', () => {
 
     // 2. Poll Gmail inbox for the OTP email and extract the 6-digit code
     const otpEmailBody = await pollGmailForMessage({
-      emailAddress: GMAIL_ADDRESS,
-      appPassword: GMAIL_APP_PASSWORD,
+      emailAddress: registerData.gmail.emailAddress,
+      appPassword: registerData.gmail.appPassword,
       subjectQuery: 'Your Verification code for Company Registration',
       since: testStartTime,
     });
@@ -253,8 +250,8 @@ test.describe('Registration Page E2E Tests', () => {
     // 4. Poll Gmail for welcome email (Subject: "User registration")
     console.log(`[TC_REG_006] Polling for welcome/user registration email...`);
     const welcomeEmailBody = await pollGmailForMessage({
-      emailAddress: GMAIL_ADDRESS,
-      appPassword: GMAIL_APP_PASSWORD,
+      emailAddress: registerData.gmail.emailAddress,
+      appPassword: registerData.gmail.appPassword,
       subjectQuery: 'User registration',
       since: welcomeStartTime,
     });
@@ -278,8 +275,8 @@ test.describe('Registration Page E2E Tests', () => {
     // 8. Poll Gmail for the invoice email (Subject: "Invoice")
     console.log(`[TC_REG_006] Polling for invoice email...`);
     const invoiceEmailBody = await pollGmailForMessage({
-      emailAddress: GMAIL_ADDRESS,
-      appPassword: GMAIL_APP_PASSWORD,
+      emailAddress: registerData.gmail.emailAddress,
+      appPassword: registerData.gmail.appPassword,
       subjectQuery: 'Invoice',
       since: invoiceStartTime,
     });

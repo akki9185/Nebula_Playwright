@@ -32,6 +32,7 @@ This document defines the E2E test suite written in Playwright (JavaScript) for 
 - **Steps**:
   1. Verify that search goal cards (EC, GC, PM, FC) are rendered and visible.
 - **Expected Results**: All search goals are visible on the page.
+
 ### TC_SUB_003: Select Essential Plan and Verify Defaults
 - **Description**: Verify that selecting the Essential plan loads default values in the Order Summary.
 - **Steps**:
