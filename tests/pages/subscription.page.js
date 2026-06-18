@@ -21,7 +21,8 @@ export class SubscriptionPage extends BasePage {
    * Navigate to the subscription selection page.
    */
   async navigateToSubscription() {
-    await this.navigate('/subscription');
+    const t = Math.random().toString(36).substring(2, 7);
+    await this.navigate(`/subscription?nocache=${t}`);
   }
 
   /**

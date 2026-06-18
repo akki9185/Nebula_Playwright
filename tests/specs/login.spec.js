@@ -72,7 +72,7 @@ test.describe('Login Page E2E Tests', () => {
     await subPage.clickNextCreateAccount();
     await expect(page).toHaveURL(/.*\/register/);
 
-    const uniqueId = Date.now();
+    const uniqueId = Math.random().toString(36).substring(2, 7);
     const testStartTime = new Date();
     const companyName = `Login Test Company ${uniqueId}`;
     const email = `ankitqa.iihglobal+${uniqueId}@gmail.com`;
