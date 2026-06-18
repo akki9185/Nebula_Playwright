@@ -68,7 +68,7 @@ test.describe('Master Expert Registration and Login Flow', () => {
       for (let attempt = 1; attempt <= 3; attempt++) {
         console.log(`Navigation attempt ${attempt}...`);
         await subPage.navigateToSubscription();
-        
+
         try {
           await expect(page.locator('h5', { hasText: /^Free$/i })).toBeVisible({ timeout: 5000 });
           loaded = true;
@@ -212,7 +212,59 @@ test.describe('Master Expert Registration and Login Flow', () => {
       // Verify that the Subscribed Search Goals section contains the text "Unpaid"
       await expect(userMgmtPage.sub_subscribedSearchGoals).toContainText(/unpaid/i, { timeout: 10000 });
 
+      // ─────────────────────────────────────────────────────────────────────────
+      // 5b. Verify Unpaid Subscription Restrictions & Enabled Controls
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 5b: Verifying Unpaid Subscription Tab Visibility and Buttons ──');
+
+      // Only Subscription and Payment History tabs should be visible
+      await expect(userMgmtPage.tab_Subscription).toBeVisible();
+      await expect(userMgmtPage.tab_PaymentHistory).toBeVisible();
+      await expect(userMgmtPage.tab_Users).toBeHidden();
+      await expect(userMgmtPage.tab_AutonomousSearch).toBeHidden();
+      await expect(userMgmtPage.tab_Configuration).toBeHidden();
+      console.log('✓ Tab visibility restrictions verified (Only Subscription & Payment History tabs visible)');
+
+      // Invite Member button in the top-right toolbar should be disabled
+      await expect(userMgmtPage.users_inviteButton).toBeDisabled();
+      console.log('✓ Invite Member button is disabled');
+
+      // Send Invoice and Update Subscription buttons should be enabled
+      const sendInvoiceBtn = page.getByRole('button', { name: /send invoice/i });
+      await expect(sendInvoiceBtn).toBeEnabled();
+      await expect(userMgmtPage.sub_updateButton).toBeEnabled();
+      console.log('✓ Send Invoice and Update Subscription buttons are enabled');
+
       console.log('✓ Navigated to My Subscription page and verified Expert plan and Search Goals status is Unpaid');
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 6. Navigate back to Adhoc Search page
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 6: Navigating back to Adhoc Search page ──');
+      await adhocPage.navigateToAdhocSearch();
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 6b. Verify Unpaid Search Goals Restriction on Adhoc Search
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 6b: Verifying Unpaid Search Goals Restriction on Adhoc Search ──');
+
+      // 1. Verify warning message is visible
+      const warningText = page.getByText('At least one data category license is needed to perform query.');
+      await expect(warningText).toBeVisible();
+      console.log('✓ Warning text "At least one data category license..." is visible');
+
+      // 2. Verify search button is disabled initially
+      const searchButton = page.getByRole('button').filter({ hasText: /search/i }).last();
+      await expect(searchButton).toBeDisabled();
+      console.log('✓ Search button is disabled initially');
+
+      // 3. Try to search with more than 5 characters
+      await adhocPage.basicSearchInput.fill('John Doe');
+
+      // 4. Verify search button remains disabled
+      await expect(searchButton).toBeDisabled();
+      console.log('✓ Search will not be allowed when more than 5 characters are added, search button will be disabled');
+      console.log('Hello hi By by');
     }
   );
 });
