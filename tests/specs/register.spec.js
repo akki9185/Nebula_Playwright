@@ -88,7 +88,7 @@ test.describe('Registration Page E2E Tests', () => {
 
     // SCENARIO 1: Duplicate Company Name + Unique Email
     {
-      const uniqueId = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 7);
       const uniqueEmailDynamic = `unique_email_${uniqueId}@example.com`;
 
       await registerPage.fillRegistrationForm({
@@ -118,7 +118,7 @@ test.describe('Registration Page E2E Tests', () => {
     // SCENARIO 2: Unique Company Name + Duplicate Email
     {
       await page.reload();
-      const uniqueId = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 7);
       const uniqueCompanyDynamic = `${uniqueCompanyName} ${uniqueId}`;
 
       await registerPage.fillRegistrationForm({
@@ -148,7 +148,7 @@ test.describe('Registration Page E2E Tests', () => {
     // SCENARIO 3: Duplicate Company Name + Duplicate Email
     {
       await page.reload();
-      const uniqueId = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 7);
 
       await registerPage.fillRegistrationForm({
         companyName: duplicateCompanyName,
@@ -177,7 +177,7 @@ test.describe('Registration Page E2E Tests', () => {
     // SCENARIO 4: Unique Company Name + Unique Email (Should Succeed)
     {
       await page.reload();
-      const uniqueId = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 7);
       const uniqueCompanyDynamic = `${uniqueCompanyName} ${uniqueId}`;
       const uniqueEmailDynamic = `unique_email_${uniqueId}@example.com`;
 
@@ -206,7 +206,7 @@ test.describe('Registration Page E2E Tests', () => {
   test('TC_REG_006: Complete successful registration flow up to the Payment invoice screen and verify welcome/invoice emails', async ({ page }) => {
     test.setTimeout(150000); // Set high timeout to accommodate multiple Gmail IMAP polls
 
-    const uniqueId = Date.now();
+    const uniqueId = Math.random().toString(36).substring(2, 7);
     const testStartTime = new Date();
     const companyName = `${registerData.validation.companyName} ${uniqueId}`;
     const email = `ankitqa.iihglobal+${uniqueId}@gmail.com`;
@@ -258,8 +258,8 @@ test.describe('Registration Page E2E Tests', () => {
     expect(welcomeEmailBody, 'Welcome registration email was not received in Gmail').not.toBe('');
     console.log('[TC_REG_006] ✓ Confirmed: Welcome/User registration email received successfully');
 
-    // 5. Verify payment/invoice options are rendered on the UI
-    await expect(registerPage.emailInvoiceButton).toBeVisible();
+
+    await expect(registerPage.emailInvoiceButton).toBeVisible(); // 5. Verify payment/invoice options are rendered on the UI
 
     // Set start time for the invoice email polling right before clicking "Email invoice and Pay"
     const invoiceStartTime = new Date();
