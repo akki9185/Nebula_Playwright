@@ -331,8 +331,8 @@ test.describe('Master Expert Registration and Login Flow', () => {
       await expect(confirmButtonInPopup).toBeDisabled();
       console.log('✓ Confirm button in upload popup is disabled initially for unpaid user');
 
-      // Click "Upload Again" (note: spelled "Uploap Again" in code)
-      const uploadAgainBtn = page.getByRole('button', { name: /uploap again/i });
+      // Click "Upload Again" (handles both "Uploap Again" typo and "Upload Again" correction)
+      const uploadAgainBtn = page.getByRole('button', { name: /uploap again|upload again/i });
       await expect(uploadAgainBtn).toBeVisible();
       await uploadAgainBtn.click();
 
@@ -353,6 +353,103 @@ test.describe('Master Expert Registration and Login Flow', () => {
       await cancelPopupBtn.click();
       console.log('✓ Upload popup cancelled successfully');
 
+      // ─────────────────────────────────────────────────────────────────────────
+      // 7. Extract Invoice Payment Link from Email & Automate Stripe Payment
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 7: Polling for Stripe Invoice Email ──');
+      
+      const invoiceEmailStart = new Date(Date.now() - 5 * 60 * 1000); // look back up to 5 mins
+      const rawInvoiceEmail = await pollEmail('invoice', invoiceEmailStart, email);
+      expect(rawInvoiceEmail, 'Invoice email not received').not.toBe('');
+      console.log('✓ Invoice email received');
+
+      // Decode and extract URL
+      const decodedInvoiceEmail = decodeQuotedPrintable(rawInvoiceEmail);
+      const invoiceUrlRegex = /https:\/\/invoice\.stripe\.com\/[^\s"'>]+/i;
+      const invoiceMatch = decodedInvoiceEmail.match(invoiceUrlRegex);
+      expect(invoiceMatch, 'Could not find Stripe invoice URL in email').not.toBeNull();
+      
+      // Clean up the URL (Stripe emails might wrap it or append clean characters)
+      let stripePaymentUrl = invoiceMatch[0];
+      stripePaymentUrl = stripePaymentUrl.replace(/[=]+$/, '').trim();
+      console.log(`✓ Extracted Stripe Invoice URL: ${stripePaymentUrl}`);
+
+      // Navigate to the Stripe hosted page
+      console.log('── Navigating to Stripe Hosted Invoice Page ──');
+      const stripePage = await page.context().newPage();
+      await stripePage.goto(stripePaymentUrl);
+      await stripePage.waitForLoadState('load');
+      console.log('✓ Stripe page loaded successfully');
+
+      // Wait for the main payment element iframe to be visible
+      const paymentIFrameLocator = stripePage.locator('iframe[src*="elements-inner-payment"]');
+      await paymentIFrameLocator.waitFor({ state: 'visible', timeout: 25000 });
+      console.log('✓ Stripe payment iframe is visible');
+
+      const stripeCardFrame = stripePage.frameLocator('iframe[src*="elements-inner-payment"]');
+
+      // Wait a short moment for internal elements to render
+      await stripePage.waitForTimeout(2000);
+
+      // Check if Card tab is visible inside the iframe and click it
+      const cardTab = stripeCardFrame.locator('text=Card').first();
+      if (await cardTab.count() > 0) {
+        await cardTab.click();
+        console.log('✓ Clicked Card payment method option inside iframe');
+      }
+
+      // Fill in credit card details inside the Stripe Element iframe
+      console.log('── Entering test credit card details on Stripe page ──');
+      const cardInput = stripeCardFrame.locator('input[name="number"]');
+      await expect(cardInput).toBeVisible({ timeout: 20000 });
+      
+      // Stripe card inputs are usually input[name="number"], input[name="expiry"], input[name="cvc"]
+      await cardInput.fill('4242');
+      await cardInput.pressSequentially('424242424242');
+      await stripeCardFrame.locator('input[name="expiry"]').fill('12/34');
+      await stripeCardFrame.locator('input[name="cvc"]').fill('123');
+
+      const postalInput = stripeCardFrame.locator('input[name="postalCode"]');
+      if (await postalInput.count() > 0) {
+        await postalInput.fill('90210');
+      }
+
+      // Click Pay
+      const stripePayBtn = stripePage.getByRole('button', { name: /Pay/i }).first();
+      await expect(stripePayBtn).toBeEnabled();
+      await stripePayBtn.click();
+      console.log('── Payment submitted, waiting for processing... ──');
+
+      // Wait for Stripe success screen
+      console.log('── Waiting for Stripe payment success message to be visible ──');
+      const successLocator = stripePage.locator('text=Invoice paid').or(stripePage.locator('text=Paid')).or(stripePage.locator('text=Payment complete'));
+      await expect(successLocator).toBeVisible({ timeout: 35000 });
+      console.log('✓ Stripe payment success message is visible!');
+      await stripePage.close();
+
+      // Navigate back to the app to verify status
+      console.log('── Verifying invoice status back in the app ──');
+      await page.goto('/user-management');
+      await userMgmtPage.goToSubscriptionTab();
+
+      // Assert plan status is Active / Non Renewable on My Subscription tab
+      await expect(userMgmtPage.sub_cellStatus).toContainText(/non renewable|active|paid/i, { timeout: 20000 });
+      await expect(userMgmtPage.sub_subscribedSearchGoals).toContainText(/non renewable|active|paid/i);
+      console.log('✓ My Subscription page status is now active/paid!');
+
+      // Go to Payment History tab and verify invoice status is Paid
+      await userMgmtPage.goToPaymentHistoryTab();
+      const firstInvoiceRowPaid = userMgmtPage.payment_tableRows.first();
+      await expect(firstInvoiceRowPaid).toBeVisible({ timeout: 15000 });
+      const statusCellPaid = firstInvoiceRowPaid.locator('td').nth(3);
+      await expect(statusCellPaid).toContainText(/Paid/i, { timeout: 20000 });
+      console.log('✓ Invoice payment verified successfully! Invoice status is now Paid.');
+
+      // Navigate to Adhoc Search page and verify restrictions are gone
+      await adhocPage.navigateToAdhocSearch();
+      await expect(warningText).not.toBeVisible();
+      await expect(searchButton).toBeEnabled();
+      console.log('✓ Warning text is gone and Search button is enabled after successful payment!');
     }
   );
 });
