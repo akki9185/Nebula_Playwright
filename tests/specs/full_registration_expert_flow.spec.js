@@ -56,6 +56,7 @@ test.describe('Master Expert Registration and Login Flow', () => {
       const adhocPage = new AdhocSearchPage(page);
       const userMgmtPage = new UserManagementPage(page);
       const usersTabPage = new UsersTabPage(page);
+      let subscriptionGrandTotal = '';
 
       // ─────────────────────────────────────────────────────────────────────────
       // 1. Subscription Page UI & Selection
@@ -92,6 +93,18 @@ test.describe('Master Expert Registration and Login Flow', () => {
       // Select Expert plan
       await subPage.selectPlan('Expert');
       console.log('✓ Expert plan selected');
+
+      // Add 7 Read-Only seats
+      for (let i = 0; i < 7; i++) {
+        await subPage.incrementReadOnly('Expert');
+      }
+      console.log('✓ 7 Read-Only seats selected');
+
+      // Assert grand total is visible and retrieve it dynamically
+      await expect(subPage.grandTotal).toBeVisible();
+      await expect(subPage.grandTotal).toContainText('$');
+      subscriptionGrandTotal = (await subPage.grandTotal.textContent()).trim();
+      console.log(`✓ Grand Total verified and retrieved dynamically: ${subscriptionGrandTotal}`);
 
       // Proceed to Registration
       await subPage.clickNextCreateAccount();
@@ -209,6 +222,13 @@ test.describe('Master Expert Registration and Login Flow', () => {
       await expect(userMgmtPage.sub_cellName).toContainText(/expert/i);
       await expect(userMgmtPage.sub_cellStatus).toContainText(/unpaid/i, { timeout: 10000 });
 
+      // Verify Seat Counts (Total & Available) are calculated correctly
+      await expect(userMgmtPage.sub_cellFullAccessSeats).toContainText('5');
+      await expect(userMgmtPage.sub_cellFullAccessAvailable).toContainText('4');
+      await expect(userMgmtPage.sub_cellReadOnlySeats).toContainText('7');
+      await expect(userMgmtPage.sub_cellReadOnlyAvailable).toContainText('7');
+      console.log('✓ Verified seat counts and available seats are calculated correctly');
+
       // Verify that the Subscribed Search Goals section contains the text "Unpaid"
       await expect(userMgmtPage.sub_subscribedSearchGoals).toContainText(/unpaid/i, { timeout: 10000 });
 
@@ -235,7 +255,34 @@ test.describe('Master Expert Registration and Login Flow', () => {
       await expect(userMgmtPage.sub_updateButton).toBeEnabled();
       console.log('✓ Send Invoice and Update Subscription buttons are enabled');
 
-      console.log('✓ Navigated to My Subscription page and verified Expert plan and Search Goals status is Unpaid');
+      // ─────────────────────────────────────────────────────────────────────────
+      // 5c. Verify Payment History & Amount Due match Grand Total
+      // ─────────────────────────────────────────────────────────────────────────
+      console.log('\n── Step 5c: Verifying Payment History status and Amount Due ──');
+      await userMgmtPage.goToPaymentHistoryTab();
+      console.log('✓ Switched to Payment History tab');
+
+      // Wait for table rows to be visible and assert on first invoice row
+      const firstInvoiceRow = userMgmtPage.payment_tableRows.first();
+      await expect(firstInvoiceRow).toBeVisible({ timeout: 15000 });
+
+      const amountDueCell = firstInvoiceRow.locator('td').nth(2);
+      const statusCell = firstInvoiceRow.locator('td').nth(3);
+
+      await expect(statusCell).toContainText('Unpaid');
+
+      // Dynamically compare amount due with stored grand total
+      const amountDueText = (await amountDueCell.textContent()).trim();
+      const cleanGrandTotal = subscriptionGrandTotal.replace(/[^0-9.]/g, '');
+      const cleanAmountDue = amountDueText.replace(/[^0-9.]/g, '');
+
+      console.log(`Comparing clean amount due: ${cleanAmountDue} with clean grand total: ${cleanGrandTotal}`);
+      expect(parseFloat(cleanAmountDue)).toBe(parseFloat(cleanGrandTotal));
+      console.log(`✓ Verified first payment invoice status is Unpaid and Amount Due matches Grand Total (${amountDueText})`);
+
+      // Switch back to Subscription tab to keep UI state consistent
+      await userMgmtPage.goToSubscriptionTab();
+      console.log('✓ Navigated back to My Subscription page and verified Expert plan and Search Goals status is Unpaid');
 
       // ─────────────────────────────────────────────────────────────────────────
       // 6. Navigate back to Adhoc Search page
@@ -254,7 +301,7 @@ test.describe('Master Expert Registration and Login Flow', () => {
       console.log('✓ Warning text "At least one data category license..." is visible');
 
       // 2. Verify search button is disabled initially
-      const searchButton = page.getByRole('button').filter({ hasText: /search/i }).last();
+      const searchButton = page.getByRole('button', { name: /Enter search criteria|Search/i }).last();
       await expect(searchButton).toBeDisabled();
       console.log('✓ Search button is disabled initially');
 
@@ -264,7 +311,48 @@ test.describe('Master Expert Registration and Login Flow', () => {
       // 4. Verify search button remains disabled
       await expect(searchButton).toBeDisabled();
       console.log('✓ Search will not be allowed when more than 5 characters are added, search button will be disabled');
-      console.log('Hello hi By by');
+
+      // 5. Verify CSV upload popup Confirm button is disabled
+      console.log('\n── Step 6c: Verifying CSV Upload restrictions for Unpaid user ──');
+      const uploadIcon = page.locator('img[alt="Upload csv icons"]');
+      await expect(uploadIcon).toBeVisible();
+      await uploadIcon.click();
+
+      // Verify Upload CSV Modal is open
+      await expect(page.getByText('Drag or upload a file')).toBeVisible();
+
+      // Upload file
+      const csvFilePath = require('path').resolve(__dirname, '../data/adhocUpload.csv');
+      const fileInput = page.locator('input[type="file"]');
+      await fileInput.setInputFiles(csvFilePath);
+
+      // Verify UploadCsvDataModal is open and Confirm button is disabled
+      const confirmButtonInPopup = page.getByRole('button', { name: 'Confirm' });
+      await expect(confirmButtonInPopup).toBeDisabled();
+      console.log('✓ Confirm button in upload popup is disabled initially for unpaid user');
+
+      // Click "Upload Again" (note: spelled "Uploap Again" in code)
+      const uploadAgainBtn = page.getByRole('button', { name: /uploap again/i });
+      await expect(uploadAgainBtn).toBeVisible();
+      await uploadAgainBtn.click();
+
+      // Verify Upload CSV Modal is open again
+      await expect(page.getByText('Drag or upload a file')).toBeVisible();
+
+      // Upload file again
+      const fileInput2 = page.locator('input[type="file"]');
+      await fileInput2.setInputFiles(csvFilePath);
+
+      // Verify Confirm button is still disabled
+      await expect(confirmButtonInPopup).toBeDisabled();
+      console.log('✓ Confirm button in upload popup is still disabled after uploading again');
+
+      // Close the popup
+      const cancelPopupBtn = page.getByRole('button', { name: 'Cancel' });
+      await expect(cancelPopupBtn).toBeEnabled();
+      await cancelPopupBtn.click();
+      console.log('✓ Upload popup cancelled successfully');
+
     }
   );
 });
