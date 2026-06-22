@@ -18,6 +18,10 @@ class AdhocSearchPage extends BasePage {
     this.uploadButton      = page.locator('button[aria-label*="upload"], button[title*="upload"]').first();
     /** Fuzzy search checkbox (shared between both tabs) */
     this.fuzzySearchCheckbox = page.getByRole('checkbox', { name: /fuzzy search/i });
+    /** Fuzzy search minimum match level slider */
+    this.fuzzySlider         = page.getByRole('slider');
+    /** Fuzzy search minimum match level slider label */
+    this.fuzzySliderLabel    = page.getByText('Minimum Match Level (%)');
     /** Info text about search category */
     this.categoryInfoText  = page.getByText(/your searches apply to category/i);
     /** Primary Search / Submit button */
@@ -33,7 +37,7 @@ class AdhocSearchPage extends BasePage {
     /** Country dropdown (MUI Autocomplete combobox) */
     this.advCountryInput        = page.locator('#state');
     /** Reset button on the Advanced Search tab */
-    this.resetButton            = page.getByRole('button', { name: /reset/i });
+    this.resetButton            = page.locator('button', { hasText: /^Reset/i }).first();
 
     // ── Results area ─────────────────────────────────────────────────────
     /** Container that holds search result rows/cards */
@@ -49,7 +53,7 @@ class AdhocSearchPage extends BasePage {
    */
   async navigateToAdhocSearch() {
     await this.navigate('/adhoc-search');
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('load');
   }
 
   // ── Tab Switching ────────────────────────────────────────────────────────
