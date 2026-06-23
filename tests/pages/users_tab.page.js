@@ -21,78 +21,78 @@ class UsersTabPage extends BasePage {
     // ══════════════════════════════════════════════════════════════════════════
     // ── TOOLBAR ──────────────────────────────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.searchInput      = page.getByPlaceholder('Search employee'); // search-by-name-or-email field
-    this.filterButton     = page.getByRole('button', { name: /^filter$/i }); // toggles the inline filter row
+    this.searchInput = page.getByPlaceholder('Search employee'); // search-by-name-or-email field
+    this.filterButton = page.getByRole('button', { name: /^filter$/i }); // toggles the inline filter row
     this.inviteMemberButton = page.getByRole('button', { name: /invite member/i }); // opens Invite Member modal
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── USERS TABLE ──────────────────────────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.table     = page.locator('table[aria-label="data table"]');
+    this.table = page.locator('table[aria-label="data table"]');
     this.tableHead = this.table.locator('thead');
     this.tableBody = this.table.locator('tbody');
     this.tableRows = this.table.locator('tbody tr'); // all data rows (excludes filter row)
 
     // Column header cells (in order as rendered by UsersDataTable)
-    this.col_srNo        = this.tableHead.locator('th').nth(0); // #
-    this.col_name        = this.tableHead.locator('th').nth(1); // Name
-    this.col_email       = this.tableHead.locator('th').nth(2); // Email
-    this.col_role        = this.tableHead.locator('th').nth(3); // Role
-    this.col_status      = this.tableHead.locator('th').nth(4); // Status
+    this.col_srNo = this.tableHead.locator('th').nth(0); // #
+    this.col_name = this.tableHead.locator('th').nth(1); // Name
+    this.col_email = this.tableHead.locator('th').nth(2); // Email
+    this.col_role = this.tableHead.locator('th').nth(3); // Role
+    this.col_status = this.tableHead.locator('th').nth(4); // Status
     this.col_subscription = this.tableHead.locator('th').nth(5); // Subscription
-    this.col_seatType    = this.tableHead.locator('th').nth(6); // Seat Type
-    this.col_renewable   = this.tableHead.locator('th').nth(7); // Renewable
-    this.col_lastLogin   = this.tableHead.locator('th').nth(8); // Last Login
-    this.col_action      = this.tableHead.locator('th').nth(9); // Action
+    this.col_seatType = this.tableHead.locator('th').nth(6); // Seat Type
+    this.col_renewable = this.tableHead.locator('th').nth(7); // Renewable
+    this.col_lastLogin = this.tableHead.locator('th').nth(8); // Last Login
+    this.col_action = this.tableHead.locator('th').nth(9); // Action
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── FILTER ROW (visible after clicking Filter button) ────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.filter_clearButton    = page.getByRole('button', { name: /clear filter/i }); // resets all filters
-    this.filter_nameInput      = page.getByPlaceholder('By name'); // filter by user name
-    this.filter_emailInput     = page.getByPlaceholder('By email'); // filter by email
-    this.filter_roleSelect     = page.getByRole('combobox').filter({ hasText: /select a role/i }); // Role dropdown: Admin | User
-    this.filter_statusSelect   = page.getByRole('combobox').filter({ hasText: /select status/i }); // Status dropdown: Active | Pending
+    this.filter_clearButton = page.getByRole('button', { name: /clear filter/i }); // resets all filters
+    this.filter_nameInput = page.getByPlaceholder('By name'); // filter by user name
+    this.filter_emailInput = page.getByPlaceholder('By email'); // filter by email
+    this.filter_roleSelect = page.getByRole('combobox').filter({ hasText: /select a role/i }); // Role dropdown: Admin | User
+    this.filter_statusSelect = page.getByRole('combobox').filter({ hasText: /select status/i }); // Status dropdown: Active | Pending
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── ROW ACTION MENU (⋯ button → dropdown) ────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
     // The action button per row renders <Button><b>...</b></Button>
-    this.actionMenu_editItem          = page.getByRole('menuitem', { name: /^edit$/i });
-    this.actionMenu_deleteItem        = page.getByRole('menuitem', { name: /^delete$/i });
+    this.actionMenu_editItem = page.getByRole('menuitem', { name: /^edit$/i });
+    this.actionMenu_deleteItem = page.getByRole('menuitem', { name: /^delete$/i });
     this.actionMenu_changePasswordItem = page.getByRole('menuitem', { name: /change password/i });
-    this.actionMenu_resendInviteItem  = page.getByRole('menuitem', { name: /resend invite/i });
-    this.actionMenu_setPrimaryItem    = page.getByRole('menuitem', { name: /set as primary/i });
+    this.actionMenu_resendInviteItem = page.getByRole('menuitem', { name: /resend invite/i });
+    this.actionMenu_setPrimaryItem = page.getByRole('menuitem', { name: /set as primary/i });
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── INVITE MEMBER MODAL ──────────────────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.invite_title              = page.getByText(/invite a team member/i);
-    this.invite_accessTypeSelect   = page.getByRole('combobox').filter({ hasText: /select access type/i });
-    this.invite_emailInput         = page.getByPlaceholder('e.g. teammember@company.com');
-    this.invite_sendButton         = page.getByRole('button', { name: /send invite/i });
-    this.invite_closeButton        = page.locator('img[alt="Close icon"]');
-    this.invite_linkInput          = page.locator('input#link');
-    this.invite_copyButton         = page.getByRole('button', { name: /copy|copied/i });
-    this.invite_successOkayButton  = page.getByRole('button', { name: /^okay$/i });
+    this.invite_title = page.getByText(/invite a team member/i);
+    this.invite_accessTypeSelect = page.locator('.MuiSelect-select').filter({ hasText: /select access type/i });
+    this.invite_emailInput = page.getByPlaceholder('e.g. teammember@company.com');
+    this.invite_sendButton = page.locator('button[type="submit"]').filter({ hasText: /send/i });
+    this.invite_closeButton = page.locator('img[alt="Close icon"]');
+    this.invite_linkInput = page.locator('input#link');
+    this.invite_copyButton = page.getByRole('button', { name: /copy|copied/i });
+    this.invite_successOkayButton = page.locator('button', { hasText: 'Okay' });
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── EDIT USER MODAL (Update Member) ──────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.edit_modal        = page.getByRole('dialog');
-    this.edit_title        = page.getByRole('dialog').getByText(/update member/i);
-    this.edit_roleSelect   = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
-    this.edit_seatSelect   = page.getByRole('dialog').getByRole('combobox', { name: /seat type/i });
-    this.edit_renewSelect  = page.getByRole('dialog').getByRole('combobox', { name: /renew status/i });
-    this.edit_saveButton   = page.getByRole('dialog').getByRole('button', { name: /save|update/i });
+    this.edit_modal = page.getByRole('dialog');
+    this.edit_title = page.getByRole('dialog').getByText(/update member/i);
+    this.edit_roleSelect = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
+    this.edit_seatSelect = page.getByRole('dialog').getByRole('combobox', { name: /seat type/i });
+    this.edit_renewSelect = page.getByRole('dialog').getByRole('combobox', { name: /renew status/i });
+    this.edit_saveButton = page.getByRole('dialog').getByRole('button', { name: /save|update/i });
     this.edit_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
 
     // ══════════════════════════════════════════════════════════════════════════
     // ── DELETE CONFIRM DIALOG ────────────────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════════
-    this.delete_dialog        = page.getByRole('dialog');
+    this.delete_dialog = page.getByRole('dialog');
     this.delete_confirmButton = page.getByRole('dialog').getByRole('button', { name: /^delete$/i });
-    this.delete_cancelButton  = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
+    this.delete_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
   }
 
   // ── Helper Methods ─────────────────────────────────────────────────────────
@@ -173,7 +173,6 @@ class UsersTabPage extends BasePage {
    * Click the Okay button on the Invitation Success modal.
    */
   async clickOkay() {
-    await this.invite_successOkayButton.waitFor({ state: 'visible' });
     await this.invite_successOkayButton.click();
   }
 
