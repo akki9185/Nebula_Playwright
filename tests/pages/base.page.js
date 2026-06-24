@@ -13,10 +13,20 @@ class BasePage {
   /**
    * Navigate to a specific path relative to the baseURL.
    * @param {string} path The URL path (e.g. '/dashboard')
+   * @param {number} [retries=3] Number of retry attempts
    */
-  async navigate(path = '') {
+  async navigate(path = '', retries = 3) {
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    await this.page.goto(cleanPath);
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.page.goto(cleanPath, { timeout: 30000 });
+        return;
+      } catch (error) {
+        console.warn(`[BasePage] Navigation attempt ${attempt} failed for path "${cleanPath}":`, error.message);
+        if (attempt === retries) throw error;
+        await this.page.waitForTimeout(1000 * attempt);
+      }
+    }
   }
 
   /**

@@ -16,19 +16,39 @@ const {
   AdhocSearchPage,
   UserManagementPage
 } = require('../../pages');
-const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../../utils/common.util');
+const { pollEmail, decodeQuotedPrintable, completeStripePayment, inviteAndRegisterMember } = require('../../utils/common.util');
 const registerData = require('../../data/register.data.json');
 
 test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
   test(
     'Single E2E Flow: Subscription → Register → Email Verification → Login → Verify Subscription (Expert Plan - Dynamic)',
     async ({ page }) => {
-      test.setTimeout(600000); // 10 minutes
+      test.setTimeout(1500000); // 25 minutes
 
       // Parse configuration from environment variables
-      const requestedFA = process.env.FA ? parseInt(process.env.FA, 10) : 5;
-      const requestedRO = process.env.RO ? parseInt(process.env.RO, 10) : 7;
-      const requestedGoals = process.env.GOALS ? process.env.GOALS.split(',').map(g => g.trim()).filter(Boolean) : [];
+      if (process.env.FA === undefined) {
+        throw new Error("FA environment variable is required");
+      }
+      if (process.env.RO === undefined) {
+        throw new Error("RO environment variable is required");
+      }
+      if (process.env.GOALS === undefined) {
+        throw new Error("GOALS environment variable is required");
+      }
+
+      const requestedFA = parseInt(process.env.FA, 10);
+      const requestedRO = parseInt(process.env.RO, 10);
+      const requestedGoals = process.env.GOALS.split(',').map(g => g.trim()).filter(Boolean);
+
+      if (isNaN(requestedFA)) {
+        throw new Error("FA must be a valid number");
+      }
+      if (isNaN(requestedRO)) {
+        throw new Error("RO must be a valid number");
+      }
+      if (requestedFA < 5) {
+        throw new Error("Expert default min seats is 5");
+      }
 
       console.log(`\n================ DYNAMIC TEST CONFIGURATION ================`);
       console.log(`Full Access Seats Requested (FA): ${requestedFA}`);
@@ -95,13 +115,13 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       const baseFA = 5;
       if (requestedFA > baseFA) {
         const clicks = requestedFA - baseFA;
-        console.log(`Adding ${clicks} extra Full Access seats...`);
+        console.log(`Adding ${requestedFA} Full Access seats...`);
         for (let i = 0; i < clicks; i++) {
           await subPage.incrementFullAccess('Expert');
         }
       } else if (requestedFA < baseFA) {
         const clicks = baseFA - requestedFA;
-        console.log(`Removing ${clicks} Full Access seats...`);
+        console.log(`Setting Full Access seats to ${requestedFA}...`);
         for (let i = 0; i < clicks; i++) {
           await subPage.decrementFullAccess('Expert');
         }
@@ -378,7 +398,7 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // 7. Extract Invoice Payment Link from Email & Automate Stripe Payment
       // ─────────────────────────────────────────────────────────────────────────
       console.log('\n── Step 7: Polling for Stripe Invoice Email ──');
-      
+
       const invoiceEmailStart = new Date(Date.now() - 5 * 60 * 1000); // look back up to 5 mins
       const rawInvoiceEmail = await pollEmail('invoice', invoiceEmailStart, email);
       expect(rawInvoiceEmail, 'Invoice email not received').not.toBe('');
@@ -389,7 +409,7 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       const invoiceUrlRegex = /https:\/\/invoice\.stripe\.com\/[^\s"'>]+/i;
       const invoiceMatch = decodedInvoiceEmail.match(invoiceUrlRegex);
       expect(invoiceMatch, 'Could not find Stripe invoice URL in email').not.toBeNull();
-      
+
       // Clean up the URL (Stripe emails might wrap it or append clean characters)
       let stripePaymentUrl = invoiceMatch[0];
       stripePaymentUrl = stripePaymentUrl.replace(/[=]+$/, '').trim();
@@ -460,37 +480,20 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // Loop to invite all available Full Access seats
       for (let count = 1; count <= fullAccessAvailableCount; count++) {
         const expectedAvailableFullSeats = fullAccessAvailableCount - count;
-        console.log(`\n── [Full Access Invite ${count}/${fullAccessAvailableCount}] Inviting member... ──`);
-        await userMgmtPage.goToUsersTab();
+        console.log(`\n── [Full Access Invite ${count}/${fullAccessAvailableCount}] Inviting & Registering member... ──`);
 
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        const invitedEmail = `ankitqa.iihglobal+${uid}MB${randomNum}@gmail.com`;
-        console.log(`Inviting Full Access member: ${invitedEmail}`);
-
-        await userMgmtPage.inviteMember({
-          email: invitedEmail,
-          accessType: 'Full Access'
+        await inviteAndRegisterMember({
+          page,
+          userMgmtPage,
+          companyName,
+          uid,
+          accessType: 'Full Access',
+          namePrefix: 'FA User',
+          index: count
         });
-        await userMgmtPage.clickOkay();
-        console.log('✓ Member invited successfully!');
-
-        // Verify invited user details in the table
-        const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
-        await expect(invitedRow).toBeVisible({ timeout: 10000 });
-
-        const cells = invitedRow.locator('td');
-        const nameText = (await cells.nth(1).innerText()).trim();
-        expect(nameText === '' || nameText === '-').toBe(true);
-        await expect(cells.nth(2)).toContainText(invitedEmail);
-        await expect(cells.nth(3)).toContainText('User');
-        await expect(cells.nth(6)).toContainText('Pending');
-        await expect(cells.nth(7)).toContainText(/expert/i);
-        await expect(cells.nth(8)).toContainText(/Full/i);
-        await expect(cells.nth(9)).toContainText('Renewable');
-        console.log('✓ Verified invited member details in table (blank name, email, User role, Pending status, Expert subscription, Full Access seat, Renewable)');
 
         // Verify available Full Access seats decreased by waiting for the response when switching to Subscription tab
-        const responsePromise = page.waitForResponse(response => 
+        const responsePromise = page.waitForResponse(response =>
           response.url().includes('/company/subscriptionsByCompanyId') && response.status() === 200
         );
         await userMgmtPage.goToSubscriptionTab();
@@ -511,37 +514,20 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // Loop to invite all available Read-Only seats
       for (let count = 1; count <= readOnlyAvailableCount; count++) {
         const expectedAvailableReadOnlySeats = readOnlyAvailableCount - count;
-        console.log(`\n── [Read Only Invite ${count}/${readOnlyAvailableCount}] Inviting member... ──`);
-        await userMgmtPage.goToUsersTab();
+        console.log(`\n── [Read Only Invite ${count}/${readOnlyAvailableCount}] Inviting & Registering member... ──`);
 
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        const invitedEmail = `ankitqa.iihglobal+${uid}MB${randomNum}@gmail.com`;
-        console.log(`Inviting Read Only member: ${invitedEmail}`);
-
-        await userMgmtPage.inviteMember({
-          email: invitedEmail,
-          accessType: 'Read Only'
+        await inviteAndRegisterMember({
+          page,
+          userMgmtPage,
+          companyName,
+          uid,
+          accessType: 'Read Only',
+          namePrefix: 'RO User',
+          index: count
         });
-        await userMgmtPage.clickOkay();
-        console.log('✓ Member invited successfully!');
-
-        // Verify invited user details in the table
-        const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
-        await expect(invitedRow).toBeVisible({ timeout: 10000 });
-
-        const cells = invitedRow.locator('td');
-        const nameText = (await cells.nth(1).innerText()).trim();
-        expect(nameText === '' || nameText === '-').toBe(true);
-        await expect(cells.nth(2)).toContainText(invitedEmail);
-        await expect(cells.nth(3)).toContainText('User');
-        await expect(cells.nth(6)).toContainText('Pending');
-        await expect(cells.nth(7)).toContainText(/expert/i);
-        await expect(cells.nth(8)).toContainText(/ReadOnly/i);
-        await expect(cells.nth(9)).toContainText('Renewable');
-        console.log('✓ Verified invited member details in table (blank name, email, User role, Pending status, Expert subscription, Read Only seat, Renewable)');
 
         // Verify available Read Only seats decreased
-        const responsePromise = page.waitForResponse(response => 
+        const responsePromise = page.waitForResponse(response =>
           response.url().includes('/company/subscriptionsByCompanyId') && response.status() === 200
         );
         await userMgmtPage.goToSubscriptionTab();
