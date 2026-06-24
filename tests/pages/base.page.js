@@ -1,4 +1,4 @@
-export class BasePage {
+class BasePage {
   /**
    * @param {import('@playwright/test').Page} page
    */
@@ -44,3 +44,5 @@ export class BasePage {
     return this.toastMessage.textContent();
   }
 }
+
+module.exports = { BasePage };

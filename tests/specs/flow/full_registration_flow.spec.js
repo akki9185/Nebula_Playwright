@@ -15,12 +15,13 @@
  */
 
 const { test, expect } = require('@playwright/test');
-const { SubscriptionPage } = require('../../pages/subscription.page');
-const { RegisterPage } = require('../../pages/register.page');
-const { LoginPage } = require('../../pages/login.page');
-const { AdhocSearchPage } = require('../../pages/adhoc_search.page');
-const { UserManagementPage } = require('../../pages/user_management.page');
-const { UsersTabPage } = require('../../pages/users_tab.page');
+const {
+  SubscriptionPage,
+  RegisterPage,
+  LoginPage,
+  AdhocSearchPage,
+  UserManagementPage
+} = require('../../pages');
 const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../../utils/common.util');
 const registerData = require('../../data/register.data.json');
 
@@ -36,7 +37,6 @@ test.describe('Master Registration and Login Flow', () => {
       const loginPage = new LoginPage(page);
       const adhocPage = new AdhocSearchPage(page);
       const userMgmtPage = new UserManagementPage(page);
-      const usersTabPage = new UsersTabPage(page);
 
       // ─────────────────────────────────────────────────────────────────────────
       // 1. Subscription Page UI & Selection
@@ -238,13 +238,13 @@ test.describe('Master Registration and Login Flow', () => {
       console.log('\n── Step 6: Verifying Registered User details on Users tab ──');
       await userMgmtPage.tab_Users.click(); // Switch to Users tab
 
-      await expect(usersTabPage.getCell(0, 1)).toContainText('Free User'); // Verify Name column contains registered user name
-      await expect(usersTabPage.getCell(0, 1)).toContainText('Primary'); // Verify Name column contains 'Primary' tag/chip
-      await expect(usersTabPage.getCell(0, 2)).toContainText(email); // Verify Email column matches registration email
-      await expect(usersTabPage.getCell(0, 3)).toContainText('Admin'); // Verify Role column has Admin role
-      await expect(usersTabPage.getCell(0, 6)).toContainText('Active'); // Verify Status column is Active (index 6 due to User Labels)
-      await expect(usersTabPage.getCell(0, 7)).toContainText(/free/i); // Verify Subscription column shows the selected Free plan (index 7 due to User Labels)
-      await expect(usersTabPage.getCell(0, 9)).toContainText('Renewable'); // Verify Renewable column shows Renewable status (index 9 due to User Labels)
+      await expect(userMgmtPage.getCell(0, 1)).toContainText('Free User'); // Verify Name column contains registered user name
+      await expect(userMgmtPage.getCell(0, 1)).toContainText('Primary'); // Verify Name column contains 'Primary' tag/chip
+      await expect(userMgmtPage.getCell(0, 2)).toContainText(email); // Verify Email column matches registration email
+      await expect(userMgmtPage.getCell(0, 3)).toContainText('Admin'); // Verify Role column has Admin role
+      await expect(userMgmtPage.getCell(0, 6)).toContainText('Active'); // Verify Status column is Active (index 6 due to User Labels)
+      await expect(userMgmtPage.getCell(0, 7)).toContainText(/free/i); // Verify Subscription column shows the selected Free plan (index 7 due to User Labels)
+      await expect(userMgmtPage.getCell(0, 9)).toContainText('Renewable'); // Verify Renewable column shows Renewable status (index 9 due to User Labels)
 
       console.log('✓ Verified user has Admin Role, Primary Tag beside name, Active status, Free subscription, Renewable option, and correct Email');
 
@@ -253,14 +253,14 @@ test.describe('Master Registration and Login Flow', () => {
       // ─────────────────────────────────────────────────────────────────────────
       console.log('\n── Step 7: Inviting new member and verifying available seat reduction ──');
       const invitedEmail = `ankitqa.iihglobal+mb${Math.random().toString(36).substring(2, 7)}@gmail.com`;
-      await usersTabPage.inviteMember({
+      await userMgmtPage.inviteMember({
         email: invitedEmail,
         accessType: 'Full Access'
       }); // Fill and submit invitation modal
-      await usersTabPage.clickOkay(); // Close invitation success modal
+      await userMgmtPage.clickOkay(); // Close invitation success modal
 
       // Verify invited user details in the table
-      const invitedRow = usersTabPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
+      const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
       await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
       const cells = invitedRow.locator('td');

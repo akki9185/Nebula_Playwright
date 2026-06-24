@@ -1,6 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { RegisterPage } = require('../pages/register.page');
-const { SubscriptionPage } = require('../pages/subscription.page');
+const { RegisterPage, SubscriptionPage } = require('../pages');
 const { pollGmailForMessage } = require('../utils/gmail.util');
 const registerData = require('../data/register.data.json');
 
@@ -82,17 +81,60 @@ test.describe('Registration Page E2E Tests', () => {
   });
 
   test('TC_REG_005: Verify that duplicate company name and/or email registration is blocked', async ({ page }) => {
-    const duplicateCompanyName = registerData.validation.duplicateCompanyName;
-    const duplicateCompanyEmail = registerData.validation.duplicateCompanyEmail;
-    const uniqueCompanyName = registerData.validation.companyName;
+    test.setTimeout(120000); // 2 minutes to allow initial registration and OTP poll
+
+    const uniqueId = Math.random().toString(36).substring(2, 7);
+    const registeredCompanyName = `Ankit QA AT Dup ${uniqueId}`;
+    const registeredEmail = `ankitqa.iihglobal+dup${uniqueId}@gmail.com`;
+    const testStartTime = new Date();
+
+    // 1. Register a company dynamically first to ensure they exist in the database
+    console.log(`\n[TC_REG_005] Registering initial company: "${registeredCompanyName}" / "${registeredEmail}"`);
+    await registerPage.fillRegistrationForm({
+      companyName: registeredCompanyName,
+      email: registeredEmail,
+      name: `User ${uniqueId}`,
+      password: registerData.validation.password,
+      confirmPassword: registerData.validation.confirmPassword
+    });
+
+    await registerPage.acceptTerms();
+    await expect(registerPage.submitButton).toBeEnabled();
+    await registerPage.clickSubmit();
+
+    const otpEmailBody = await pollGmailForMessage({
+      emailAddress: registerData.gmail.emailAddress,
+      appPassword: registerData.gmail.appPassword,
+      subjectQuery: 'Your Verification code for Company Registration',
+      since: testStartTime,
+    });
+    expect(otpEmailBody, 'Initial registration OTP email was not received').not.toBe('');
+
+    const otpMatch = otpEmailBody.match(/\b\d{6}\b/);
+    expect(otpMatch, 'Could not extract OTP').not.toBeNull();
+    const fetchedOtp = otpMatch[0];
+    console.log(`[TC_REG_005] Extracted OTP for initial signup: ${fetchedOtp}`);
+
+    await registerPage.fillOtp(fetchedOtp);
+    await registerPage.clickSubmit();
+
+    // Wait until we reach the invoice screen to confirm registration is saved in DB
+    await expect(registerPage.emailInvoiceButton).toBeVisible({ timeout: 20000 });
+    console.log('[TC_REG_005] Initial company registered successfully. Testing duplicate validation...');
 
     // SCENARIO 1: Duplicate Company Name + Unique Email
     {
-      const uniqueId = Math.random().toString(36).substring(2, 7);
-      const uniqueEmailDynamic = `unique_email_${uniqueId}@example.com`;
+      await page.reload();
+      // Wait for page to initialize session state again
+      await subPage.navigateToSubscription();
+      await subPage.selectPlan('Essential');
+      await subPage.clickNextCreateAccount();
+
+      const uniqueEmailDynamic = `ankitqa.iihglobal+uniq_${uniqueId}@gmail.com`;
+      console.log(`[TC_REG_005] Scenario 1: Duplicate Name "${registeredCompanyName}" with unique email "${uniqueEmailDynamic}"`);
 
       await registerPage.fillRegistrationForm({
-        companyName: duplicateCompanyName,
+        companyName: registeredCompanyName,
         email: uniqueEmailDynamic,
         name: `User ${uniqueId}`,
         password: registerData.validation.password,
@@ -118,12 +160,17 @@ test.describe('Registration Page E2E Tests', () => {
     // SCENARIO 2: Unique Company Name + Duplicate Email
     {
       await page.reload();
-      const uniqueId = Math.random().toString(36).substring(2, 7);
-      const uniqueCompanyDynamic = `${uniqueCompanyName} ${uniqueId}`;
+      // Wait for page to initialize session state again
+      await subPage.navigateToSubscription();
+      await subPage.selectPlan('Essential');
+      await subPage.clickNextCreateAccount();
+
+      const uniqueCompanyDynamic = `Unique Co ${uniqueId}`;
+      console.log(`[TC_REG_005] Scenario 2: Unique Name "${uniqueCompanyDynamic}" with duplicate email "${registeredEmail}"`);
 
       await registerPage.fillRegistrationForm({
         companyName: uniqueCompanyDynamic,
-        email: duplicateCompanyEmail,
+        email: registeredEmail,
         name: `User ${uniqueId}`,
         password: registerData.validation.password,
         confirmPassword: registerData.validation.confirmPassword
@@ -148,11 +195,16 @@ test.describe('Registration Page E2E Tests', () => {
     // SCENARIO 3: Duplicate Company Name + Duplicate Email
     {
       await page.reload();
-      const uniqueId = Math.random().toString(36).substring(2, 7);
+      // Wait for page to initialize session state again
+      await subPage.navigateToSubscription();
+      await subPage.selectPlan('Essential');
+      await subPage.clickNextCreateAccount();
+
+      console.log(`[TC_REG_005] Scenario 3: Duplicate Name "${registeredCompanyName}" and duplicate email "${registeredEmail}"`);
 
       await registerPage.fillRegistrationForm({
-        companyName: duplicateCompanyName,
-        email: duplicateCompanyEmail,
+        companyName: registeredCompanyName,
+        email: registeredEmail,
         name: `User ${uniqueId}`,
         password: registerData.validation.password,
         confirmPassword: registerData.validation.confirmPassword
@@ -178,7 +230,7 @@ test.describe('Registration Page E2E Tests', () => {
     {
       await page.reload();
       const uniqueId = Math.random().toString(36).substring(2, 7);
-      const uniqueCompanyDynamic = `${uniqueCompanyName} ${uniqueId}`;
+      const uniqueCompanyDynamic = `Unique Co ${uniqueId}`;
       const uniqueEmailDynamic = `unique_email_${uniqueId}@example.com`;
 
       await registerPage.fillRegistrationForm({

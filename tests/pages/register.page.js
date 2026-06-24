@@ -1,6 +1,6 @@
-import { BasePage } from './base.page';
+const { BasePage } = require('./base.page');
 
-export class RegisterPage extends BasePage {
+class RegisterPage extends BasePage {
   /**
    * @param {import('@playwright/test').Page} page
    */
@@ -59,3 +59,5 @@ export class RegisterPage extends BasePage {
     await this.wait(500);
   }
 }
+
+module.exports = { RegisterPage };

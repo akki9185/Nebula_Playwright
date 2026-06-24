@@ -9,12 +9,13 @@
  */
 
 const { test, expect } = require('@playwright/test');
-const { SubscriptionPage } = require('../../pages/subscription.page');
-const { RegisterPage } = require('../../pages/register.page');
-const { LoginPage } = require('../../pages/login.page');
-const { AdhocSearchPage } = require('../../pages/adhoc_search.page');
-const { UserManagementPage } = require('../../pages/user_management.page');
-const { UsersTabPage } = require('../../pages/users_tab.page');
+const {
+  SubscriptionPage,
+  RegisterPage,
+  LoginPage,
+  AdhocSearchPage,
+  UserManagementPage
+} = require('../../pages');
 const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../../utils/common.util');
 const registerData = require('../../data/register.data.json');
 
@@ -52,7 +53,6 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       const loginPage = new LoginPage(page);
       const adhocPage = new AdhocSearchPage(page);
       const userMgmtPage = new UserManagementPage(page);
-      const usersTabPage = new UsersTabPage(page);
       let subscriptionGrandTotal = '';
 
       // ─────────────────────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       console.log('✓ Tab visibility restrictions verified (Only Subscription & Payment History tabs visible)');
 
       // Invite Member button in the top-right toolbar should be disabled
-      await expect(userMgmtPage.users_inviteButton).toBeDisabled();
+      await expect(userMgmtPage.inviteMemberButton).toBeDisabled();
       console.log('✓ Invite Member button is disabled');
 
       // Send Invoice and Update Subscription buttons should be enabled
@@ -467,15 +467,15 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
         const invitedEmail = `ankitqa.iihglobal+${uid}MB${randomNum}@gmail.com`;
         console.log(`Inviting Full Access member: ${invitedEmail}`);
 
-        await usersTabPage.inviteMember({
+        await userMgmtPage.inviteMember({
           email: invitedEmail,
           accessType: 'Full Access'
         });
-        await usersTabPage.clickOkay();
+        await userMgmtPage.clickOkay();
         console.log('✓ Member invited successfully!');
 
         // Verify invited user details in the table
-        const invitedRow = usersTabPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
+        const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
         await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
         const cells = invitedRow.locator('td');
@@ -518,15 +518,15 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
         const invitedEmail = `ankitqa.iihglobal+${uid}MB${randomNum}@gmail.com`;
         console.log(`Inviting Read Only member: ${invitedEmail}`);
 
-        await usersTabPage.inviteMember({
+        await userMgmtPage.inviteMember({
           email: invitedEmail,
           accessType: 'Read Only'
         });
-        await usersTabPage.clickOkay();
+        await userMgmtPage.clickOkay();
         console.log('✓ Member invited successfully!');
 
         // Verify invited user details in the table
-        const invitedRow = usersTabPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
+        const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
         await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
         const cells = invitedRow.locator('td');
@@ -557,8 +557,8 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // Verify that after all seats are consumed, the invitation options are disabled
       console.log('\n── Step 9: Verifying that invitation options are disabled when available seats are 0 ──');
       await userMgmtPage.goToUsersTab();
-      await usersTabPage.openInviteMemberModal();
-      await usersTabPage.invite_accessTypeSelect.click();
+      await userMgmtPage.openInviteMemberModal();
+      await userMgmtPage.invite_accessTypeSelect.click();
 
       // Both options in dropdown should be disabled
       const fullAccessOption = page.getByRole('option', { name: /Full Access/i }).first();
@@ -572,7 +572,7 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       await page.waitForTimeout(500);
 
       // Close the modal
-      await usersTabPage.invite_closeButton.click();
+      await userMgmtPage.invite_closeButton.click();
       console.log('✓ Verified that both Full Access and Read Only options are disabled in the modal');
     }
   );
