@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage } = require('../pages/login.page');
-const { RegisterPage } = require('../pages/register.page');
-const { SubscriptionPage } = require('../pages/subscription.page');
+const {
+  LoginPage, RegisterPage, SubscriptionPage
+} = require('../pages');
 const { pollGmailForMessage } = require('../utils/gmail.util');
 const loginData = require('../data/login.data.json');
 const registerData = require('../data/register.data.json');

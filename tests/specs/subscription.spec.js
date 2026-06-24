@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { SubscriptionPage } = require('../pages/subscription.page');
+const { SubscriptionPage } = require('../pages');
 const subscriptionData = require('../data/subscription.data.json');
 
 test.describe('Subscription Page UI & Calculation Tests', () => {

@@ -2,8 +2,7 @@ const { BasePage } = require('./base.page');
 
 /**
  * Page Object for /webapp/user-management
- *
- * Tabs (in order):
+ * Covers all tabs:
  *  1. Users
  *  2. Autonomous Search
  *  3. Configuration
@@ -27,43 +26,66 @@ class UserManagementPage extends BasePage {
     this.tab_PaymentHistory = page.getByRole('tab', { name: /payment history/i });
 
     // ════════════════════════════════════════════════════════════════════════
-    // ── TAB 1: USERS ────────────────────────────────────────────────────────
+    // ── TAB 1: USERS (formerly UsersTabPage) ────────────────────────────────
     // ════════════════════════════════════════════════════════════════════════
+    this.searchInput = page.getByPlaceholder('Search employee'); // search-by-name-or-email field
+    this.filterButton = page.getByRole('button', { name: /^filter$/i }); // toggles the inline filter row
+    this.inviteMemberButton = page.getByRole('button', { name: /invite member/i }); // opens Invite Member modal
 
-    // Toolbar controls
-    this.users_searchInput = page.getByPlaceholder(/search by name or email/i);
-    this.users_filterButton = page.getByRole('button', { name: /filter/i });
-    this.users_inviteButton = page.getByRole('button', { name: /invite member/i });
+    this.table = page.locator('table[aria-label="data table"]');
+    this.tableHead = this.table.locator('thead');
+    this.tableBody = this.table.locator('tbody');
+    this.tableRows = this.table.locator('tbody tr'); // all data rows (excludes filter row)
 
-    // Filter panel (visible after clicking filterButton)
-    this.users_filterByStatus = page.getByRole('combobox', { name: /status/i });
-    this.users_filterByRole = page.getByRole('combobox', { name: /role/i });
+    // Column header cells (in order as rendered by UsersDataTable)
+    this.col_srNo = this.tableHead.locator('th').nth(0); // #
+    this.col_name = this.tableHead.locator('th').nth(1); // Name
+    this.col_email = this.tableHead.locator('th').nth(2); // Email
+    this.col_role = this.tableHead.locator('th').nth(3); // Role
+    this.col_status = this.tableHead.locator('th').nth(4); // Status
+    this.col_subscription = this.tableHead.locator('th').nth(5); // Subscription
+    this.col_seatType = this.tableHead.locator('th').nth(6); // Seat Type
+    this.col_renewable = this.tableHead.locator('th').nth(7); // Renewable
+    this.col_lastLogin = this.tableHead.locator('th').nth(8); // Last Login
+    this.col_action = this.tableHead.locator('th').nth(9); // Action
 
-    // Users table
-    this.users_table = page.locator('table').first();
-    this.users_tableRows = page.locator('table tbody tr');
+    // Filter row (visible after clicking Filter button)
+    this.filter_clearButton = page.getByRole('button', { name: /clear filter/i }); // resets all filters
+    this.filter_nameInput = page.getByPlaceholder('By name'); // filter by user name
+    this.filter_emailInput = page.getByPlaceholder('By email'); // filter by email
+    this.filter_roleSelect = page.getByRole('combobox').filter({ hasText: /select a role/i }); // Role dropdown
+    this.filter_statusSelect = page.getByRole('combobox').filter({ hasText: /select status/i }); // Status dropdown
 
-    // Row-level action menu (three-dot "…" button — per row)
-    this.users_actionMenuBtn = page.locator('button[aria-label*="more"], button[title*="action"], [data-testid*="action"]');
+    // Row Action Menu (⋯ button → dropdown)
+    this.actionMenu_editItem = page.getByRole('menuitem', { name: /^edit$/i });
+    this.actionMenu_deleteItem = page.getByRole('menuitem', { name: /^delete$/i });
+    this.actionMenu_changePasswordItem = page.getByRole('menuitem', { name: /change password/i });
+    this.actionMenu_resendInviteItem = page.getByRole('menuitem', { name: /resend invite/i });
+    this.actionMenu_setPrimaryItem = page.getByRole('menuitem', { name: /set as primary/i });
 
-    // Action menu items (appear after clicking row action menu)
-    this.users_editMenuItem = page.getByRole('menuitem', { name: /edit/i });
-    this.users_deleteMenuItem = page.getByRole('menuitem', { name: /delete/i });
+    // Invite Member Modal
+    this.invite_title = page.getByText(/invite a team member/i);
+    this.invite_accessTypeSelect = page.locator('.MuiSelect-select').filter({ hasText: /select access type/i });
+    this.invite_emailInput = page.getByPlaceholder('e.g. teammember@company.com');
+    this.invite_sendButton = page.locator('button[type="submit"]').filter({ hasText: /send/i });
+    this.invite_closeButton = page.locator('img[alt="Close icon"]');
+    this.invite_linkInput = page.locator('input#link');
+    this.invite_copyButton = page.getByRole('button', { name: /copy|copied/i });
+    this.invite_successOkayButton = page.locator('button', { hasText: 'Okay' });
 
-    // ── Invite Member modal ──────────────────────────────────────────────────
-    this.invite_modal = page.getByRole('dialog');
-    this.invite_emailInput = page.getByRole('dialog').getByPlaceholder(/email/i);
-    this.invite_roleDropdown = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
-    this.invite_sendButton = page.getByRole('dialog').getByRole('button', { name: /send invite|invite/i });
-    this.invite_closeButton = page.getByRole('dialog').getByRole('button', { name: /close|cancel/i });
+    // Edit User Modal (Update Member)
+    this.edit_modal = page.getByRole('dialog');
+    this.edit_title = page.getByRole('dialog').getByText(/update member/i);
+    this.edit_roleSelect = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
+    this.edit_seatSelect = page.getByRole('dialog').getByRole('combobox', { name: /seat type/i });
+    this.edit_renewSelect = page.getByRole('dialog').getByRole('combobox', { name: /renew status/i });
+    this.edit_saveButton = page.getByRole('dialog').getByRole('button', { name: /save|update/i });
+    this.edit_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
 
-    // ── Update Member modal ──────────────────────────────────────────────────
-    this.update_modal = page.getByRole('dialog');
-    this.update_nameInput = page.getByRole('dialog').getByPlaceholder(/name/i);
-    this.update_roleDropdown = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
-    this.update_statusDropdown = page.getByRole('dialog').getByRole('combobox', { name: /status/i });
-    this.update_saveButton = page.getByRole('dialog').getByRole('button', { name: /save|update/i });
-    this.update_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
+    // Delete Confirm Dialog
+    this.delete_dialog = page.getByRole('dialog');
+    this.delete_confirmButton = page.getByRole('dialog').getByRole('button', { name: /^delete$/i });
+    this.delete_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
 
     // ════════════════════════════════════════════════════════════════════════
     // ── TAB 2: AUTONOMOUS SEARCH ────────────────────────────────────────────
@@ -74,21 +96,15 @@ class UserManagementPage extends BasePage {
     // ════════════════════════════════════════════════════════════════════════
     // ── TAB 3: CONFIGURATION ────────────────────────────────────────────────
     // ════════════════════════════════════════════════════════════════════════
-
-    // Custom Labels section
     this.config_customLabelsHeading = page.getByText(/custom labels/i);
     this.config_addLabelButton = page.getByRole('button', { name: /add label/i });
     this.config_labelNameInput = page.getByPlaceholder(/label name/i);
     this.config_saveLabelButton = page.getByRole('button', { name: /save/i });
-
-    // User Labels section
     this.config_userLabelsHeading = page.getByText(/user labels/i);
 
     // ════════════════════════════════════════════════════════════════════════
     // ── TAB 4: SUBSCRIPTION ─────────────────────────────────────────────────
     // ════════════════════════════════════════════════════════════════════════
-
-    // Current plan overview
     this.sub_planNameValue = page.getByText('MY Subscription').locator('xpath=..');
     this.sub_statusChip = page.locator('.MuiChip-root').filter({ hasText: /active|inactive|renewable|non renewable/i }).first();
     this.sub_updateButton = page.getByRole('button', { name: /update subscription/i });
@@ -113,7 +129,7 @@ class UserManagementPage extends BasePage {
     this.sub_confirmContinueBtn = page.getByRole('dialog').getByRole('button', { name: /continue/i });
     this.sub_confirmCancelBtn = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
 
-    // Subscription details page (after clicking Update Subscription → Continue)
+    // Subscription details page
     this.sub_backButton = page.getByRole('button', { name: /back/i });
 
     // ════════════════════════════════════════════════════════════════════════
@@ -154,33 +170,85 @@ class UserManagementPage extends BasePage {
    * @param {string} query
    */
   async searchUser(query) {
-    await this.users_searchInput.fill(query);
+    await this.searchInput.fill(query);
   }
 
   /**
-   * Open the Invite Member modal.
+   * Toggle the inline filter row on/off.
    */
-  async openInviteModal() {
-    await this.users_inviteButton.click();
-    await this.invite_modal.waitFor({ state: 'visible' });
+  async toggleFilter() {
+    await this.filterButton.click();
   }
 
   /**
-   * Invite a member by email.
-   * @param {string} email
+   * Get a data row locator by 0-based index.
+   * @param {number} index
    */
-  async inviteMember(email) {
-    await this.openInviteModal();
+  getRow(index = 0) {
+    return this.tableRows.nth(index);
+  }
+
+  /**
+   * Get a specific cell within a row.
+   * @param {number} rowIndex  0-based row index
+   * @param {number} colIndex  0-based column index
+   */
+  getCell(rowIndex = 0, colIndex = 0) {
+    return this.getRow(rowIndex).locator('td').nth(colIndex);
+  }
+
+  /**
+   * Click the ⋯ action button for a specific row (0-based index).
+   * @param {number} rowIndex
+   */
+  async openRowActionMenu(rowIndex = 0) {
+    await this.getRow(rowIndex).locator('button').last().click();
+  }
+
+  /**
+   * Open the Invite Member modal by clicking the toolbar button.
+   */
+  async openInviteMemberModal() {
+    await this.inviteMemberButton.click();
+    try {
+      await this.invite_emailInput.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (err) {
+      console.log('Modal did not open on first click. Retrying click...');
+      await this.inviteMemberButton.click({ force: true });
+      await this.invite_emailInput.waitFor({ state: 'visible', timeout: 5000 });
+    }
+  }
+
+  /**
+   * Fill and submit the Invite Member modal.
+   * @param {object} opts
+   * @param {string} opts.email         Invitee email address
+   * @param {string} [opts.accessType]  "Full Access" or "Read Only"
+   */
+  async inviteMember({ email, accessType } = {}) {
+    await this.openInviteMemberModal();
+    if (accessType) {
+      await this.invite_accessTypeSelect.click();
+      await this.page.getByRole('option', { name: new RegExp(accessType, 'i') }).first().click();
+    }
     await this.invite_emailInput.fill(email);
     await this.invite_sendButton.click();
   }
 
   /**
-   * Click the action menu (⋯) for a specific row by index (0-based).
-   * @param {number} rowIndex
+   * Click the Okay button on the Invitation Success modal.
    */
-  async openRowActionMenu(rowIndex = 0) {
-    await this.users_tableRows.nth(rowIndex).locator('button').last().click();
+  async clickOkay() {
+    await this.invite_successOkayButton.click();
+  }
+
+  /**
+   * Get the status chip text from a row (0-based index).
+   * @param {number} rowIndex
+   * @returns {Promise<string>}
+   */
+  async getRowStatus(rowIndex = 0) {
+    return this.getRow(rowIndex).locator('.MuiChip-label').innerText();
   }
 
   // ── Subscription Tab Actions ──────────────────────────────────────────────

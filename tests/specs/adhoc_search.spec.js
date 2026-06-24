@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage } = require('../pages/login.page');
-const { AdhocSearchPage } = require('../pages/adhoc_search.page');
+const {
+  LoginPage, AdhocSearchPage } = require('../pages');
 
 test.describe('Adhoc Search Page Functional & Validation Tests', () => {
   let loginPage;
@@ -21,7 +21,7 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
   test('Basic Search & CSV Upload Verification', async ({ page }) => {
     console.log('\n── Step 1: Basic Search Flow & Verification ──');
     await expect(adhocPage.basicSearchInput).toBeVisible();
-    
+
     // 1. Initial State: Button should be disabled
     const searchButton = page.getByRole('button', { name: /Enter search criteria|Search/i }).last();
     await expect(searchButton).toBeDisabled();
@@ -61,7 +61,7 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
     await expect(page.getByText('Search term must be at least 2 characters')).not.toBeVisible();
     await expect(searchButton).toBeEnabled();
     await searchButton.click();
-    
+
     // Verify results container is visible
     await expect(adhocPage.resultsContainer).toBeVisible({ timeout: 15000 });
     console.log('✓ Basic search completed successfully and results displayed');
@@ -91,7 +91,7 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
 
     // Click Confirm
     await confirmBtn.click();
-    
+
     // Verify results container is visible
     await expect(adhocPage.resultsContainer).toBeVisible({ timeout: 15000 });
     console.log('✓ CSV upload confirmed and search results displayed successfully');
@@ -152,7 +152,7 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
     console.log('\n── Step 3: Verifying Country-Only Restriction ──');
     await adhocPage.advCountryInput.fill('United States');
     await page.getByRole('option', { name: 'United States' }).first().click();
-    
+
     // Verify Country-only warning is visible and button is disabled
     await expect(page.getByText('Country cannot be the only search field')).toBeVisible();
     await expect(searchButton).toBeDisabled();
@@ -188,7 +188,7 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
     // Country + Name + ID + Address combo is active
     await expect(searchButton).toBeEnabled();
     await searchButton.click();
-    
+
     // Verify results load
     await expect(adhocPage.resultsContainer).toBeVisible({ timeout: 15000 });
     console.log('✓ Advanced search with multiple fields executed successfully');
