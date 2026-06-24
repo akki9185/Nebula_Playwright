@@ -72,7 +72,7 @@ async function completeStripePayment(stripePage) {
     } catch (e) {
       console.log(`Payment success screen not visible on attempt ${attempt}. Retrying click on Pay button...`);
       if (await stripePayBtn.isVisible()) {
-        await stripePayBtn.click().catch(() => {});
+        await stripePayBtn.click().catch(() => { });
       }
     }
   }
@@ -84,8 +84,120 @@ async function completeStripePayment(stripePage) {
   await stripePage.waitForTimeout(5000);
 }
 
+
+
+
+
+
+
+const { RegisterPage } = require('../pages');
+
+async function inviteAndRegisterMember({
+  page,
+  userMgmtPage,
+  companyName,
+  uid,
+  accessType,
+  namePrefix,
+  index
+}) {
+  await userMgmtPage.goToUsersTab();
+
+  const randomNum = Math.floor(1000 + Math.random() * 9000);
+  const invitedEmail = `ankitqa.iihglobal+${uid}MB${randomNum}@gmail.com`;
+  console.log(`Inviting ${accessType} member: ${invitedEmail}`);
+
+  const inviteStartTime = new Date();
+  await userMgmtPage.inviteMember({
+    email: invitedEmail,
+    accessType
+  });
+  await userMgmtPage.clickOkay();
+  console.log('✓ Member invited successfully!');
+
+  // Verify invited user details in the table
+  const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
+  await expect(invitedRow).toBeVisible({ timeout: 10000 });
+
+  const cells = invitedRow.locator('td');
+  const nameText = (await cells.nth(1).innerText()).trim();
+  expect(nameText === '' || nameText === '-').toBe(true);
+  await expect(cells.nth(2)).toContainText(invitedEmail);
+  await expect(cells.nth(3)).toContainText('User');
+  await expect(cells.nth(6)).toContainText('Pending');
+  await expect(cells.nth(7)).toContainText(/expert/i);
+  await expect(cells.nth(8)).toContainText(accessType === 'Full Access' ? /Full/i : /ReadOnly/i);
+  await expect(cells.nth(9)).toContainText('Renewable');
+  console.log(`✓ Verified invited member details in table (blank name, email, User role, Pending status, Expert subscription, ${accessType} seat, Renewable)`);
+
+  // Now retrieve the invitation link from email, complete the registration form, and confirm they become Active!
+  console.log(`Polling for invitation email for: ${invitedEmail}`);
+  const emailMessage = await pollEmail(`${companyName} Invited`, inviteStartTime);
+  expect(emailMessage).toBeTruthy();
+  console.log(`✓ Invitation email found for: ${invitedEmail}`);
+
+  const decodedBody = decodeQuotedPrintable(emailMessage);
+  const inviteUrlMatch = decodedBody.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
+  expect(inviteUrlMatch).toBeTruthy();
+  let inviteUrl = inviteUrlMatch[0].replace(/[=]+$/, '').trim();
+  console.log(`✓ Extracted Invitation URL: ${inviteUrl}`);
+
+  // Complete registration in new, unauthenticated context
+  const inviteContext = await page.context().browser().newContext();
+  const invitePage = await inviteContext.newPage();
+  const inviteRegisterPage = new RegisterPage(invitePage);
+  await invitePage.goto(inviteUrl);
+  await invitePage.waitForLoadState('load');
+  console.log('✓ Invitation register page loaded successfully');
+
+  const otpSentTime = new Date();
+  const memberName = `${namePrefix} ${index}`;
+  await inviteRegisterPage.fillRegistrationForm({
+    name: memberName,
+    password: 'Pa$$w0rd!',
+    confirmPassword: 'Pa$$w0rd!'
+  });
+  await inviteRegisterPage.acceptTerms();
+  await expect(inviteRegisterPage.submitButton).toBeEnabled();
+  await inviteRegisterPage.clickSubmit();
+  console.log('✓ First register submit clicked. Polling for invited member OTP email...');
+
+  // Poll OTP and submit
+  const inviteOtpBody = await pollEmail('Verification code', otpSentTime, invitedEmail);
+  expect(inviteOtpBody, 'Invited user OTP email not received').not.toBe('');
+  const inviteOtpMatch = inviteOtpBody.match(/\b\d{6}\b/);
+  expect(inviteOtpMatch, 'Could not extract OTP for invited user').not.toBeNull();
+  const inviteOtp = inviteOtpMatch[0];
+  console.log(`✓ Invited user OTP received: ${inviteOtp}`);
+
+  await inviteRegisterPage.fillOtp(inviteOtp);
+  await inviteRegisterPage.clickSubmit();
+
+  // Wait for redirection to adhoc-search screen (dashboard)
+  await expect(invitePage).toHaveURL(/.*\/adhoc-search/, { timeout: 30000 });
+  console.log('✓ Invited user registered successfully and redirected to dashboard');
+  await invitePage.close();
+  await inviteContext.close();
+
+  // Refresh the page and assert the user status becomes Active in the user management table
+  await page.reload();
+  await userMgmtPage.goToUsersTab();
+  const updatedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
+  await expect(updatedRow).toBeVisible({ timeout: 15000 });
+  const updatedCells = updatedRow.locator('td');
+  await expect(updatedCells.nth(1)).toContainText(memberName);
+  await expect(updatedCells.nth(2)).toContainText(invitedEmail);
+  await expect(updatedCells.nth(3)).toContainText('User');
+  await expect(updatedCells.nth(6)).toContainText('Active');
+  await expect(updatedCells.nth(7)).toContainText(/expert/i);
+  await expect(updatedCells.nth(8)).toContainText(accessType === 'Full Access' ? /Full/i : /ReadOnly/i);
+  await expect(updatedCells.nth(9)).toContainText('Renewable');
+  console.log(`✓ Verified registered member details in Users table (name, email, role, Active status, expert subscription, ${accessType} seat, Renewable)`);
+}
+
 module.exports = {
   pollEmail,
   decodeQuotedPrintable,
   completeStripePayment,
+  inviteAndRegisterMember,
 };

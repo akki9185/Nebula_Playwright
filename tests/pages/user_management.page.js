@@ -240,6 +240,7 @@ class UserManagementPage extends BasePage {
    */
   async clickOkay() {
     await this.invite_successOkayButton.click();
+    await this.invite_successOkayButton.waitFor({ state: 'hidden', timeout: 5000 });
   }
 
   /**
