@@ -91,9 +91,23 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     await registerPage.acceptTerms();
     await expect(registerPage.submitButton).toBeEnabled();
 
+    // ── Promotion Code field verification BEFORE Verify Email click ────────
+    await expect(registerPage.promoCodeInput, 'Promotion code input field should be visible').toBeVisible();
+    await expect(registerPage.promoCodeInput, 'Promotion code input field should be enabled before Verify Email is clicked').toBeEnabled();
+    await expect(registerPage.promoApplyButton, 'Apply button should be visible').toBeVisible();
+    await expect(registerPage.promoApplyButton, 'Apply button should be disabled initially when promotion code input is empty').toBeDisabled();
+
+    // Fill in a test code to enable Apply button
+    await registerPage.promoCodeInput.fill('TESTCODE');
+    await expect(registerPage.promoApplyButton, 'Apply button should become enabled when a promotion code is entered').toBeEnabled();
+
     const testStartTime = new Date();
     await registerPage.clickSubmit();
     console.log('✓ Registration submitted.');
+
+    // ── Promotion Code field verification AFTER Verify Email click ─────────
+    await expect(registerPage.promoCodeInput, 'Promotion code input field should be disabled after Verify Email is clicked').toBeDisabled();
+    await expect(registerPage.promoApplyButton, 'Apply button should be disabled after Verify Email is clicked').toBeDisabled();
 
     // ── Step 3: OTP verification ────────────────────────────────────────────
     console.log('Polling for OTP email...');
@@ -344,3 +358,4 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     console.log('✓ Read Only member verified: Pending, Expert, Read Only, Renewable');
   });
 });
+
