@@ -20,6 +20,15 @@ test.describe('Registration Page E2E Tests', () => {
     await expect(page).toHaveURL(/.*\/register/);
   });
 
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const cleanTitle = testInfo.title.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const screenshotPath = `test-results/screenshots/${cleanTitle}-failed.png`;
+      console.log(`[Failure] Saving screenshot to: ${screenshotPath}`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+  });
+
   test('TC_REG_001: Verify registration page renders all fields and selected plan details', async () => {
     // 1. Verify all registration form fields are visible
     await expect(registerPage.companyNameInput).toBeVisible();

@@ -13,6 +13,15 @@ test.describe('Subscription Page UI & Calculation Tests', () => {
     await subPage.planCards.first().waitFor({ state: 'visible', timeout: 15000 });
   });
 
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const cleanTitle = testInfo.title.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const screenshotPath = `test-results/screenshots/${cleanTitle}-failed.png`;
+      console.log(`[Failure] Saving screenshot to: ${screenshotPath}`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+  });
+
   test('TC_SUB_001: Verify basic UI rendering of plans', async () => {
     // Check that all plan cards are rendered
     await expect(subPage.page.locator('h5', { hasText: /^Free$/i })).toBeVisible();

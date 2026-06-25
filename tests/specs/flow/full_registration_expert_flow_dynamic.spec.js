@@ -20,6 +20,15 @@ const { pollEmail, decodeQuotedPrintable, completeStripePayment, inviteAndRegist
 const registerData = require('../../data/register.data.json');
 
 test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const cleanTitle = testInfo.title.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const screenshotPath = `test-results/screenshots/${cleanTitle}-failed.png`;
+      console.log(`[Failure] Saving screenshot to: ${screenshotPath}`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+  });
+
   test(
     'Single E2E Flow: Subscription → Register → Email Verification → Login → Verify Subscription (Expert Plan - Dynamic)',
     async ({ page }) => {

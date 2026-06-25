@@ -18,6 +18,15 @@ test.describe('Adhoc Search Page Functional & Validation Tests', () => {
     console.log('✓ Logged in and redirected to Adhoc Search page');
   });
 
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const cleanTitle = testInfo.title.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const screenshotPath = `test-results/screenshots/${cleanTitle}-failed.png`;
+      console.log(`[Failure] Saving screenshot to: ${screenshotPath}`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+  });
+
   test('Basic Search & CSV Upload Verification', async ({ page }) => {
     console.log('\n── Step 1: Basic Search Flow & Verification ──');
     await expect(adhocPage.basicSearchInput).toBeVisible();
