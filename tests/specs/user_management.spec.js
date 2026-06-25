@@ -34,9 +34,9 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     console.log('\n════ beforeAll: Registering fresh Expert account and completing payment ════');
 
     const context = await browser.newContext();
-    const page    = await context.newPage();
+    const page = await context.newPage();
 
-    const subPage      = new SubscriptionPage(page);
+    const subPage = new SubscriptionPage(page);
     const registerPage = new RegisterPage(page);
 
     // ── Step 1: Select Expert plan (FA=5, RO=1, GOALS=FC) ──────────────────
@@ -75,9 +75,9 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     await expect(page).toHaveURL(/.*\/register/);
 
     // ── Step 2: Fill registration form ─────────────────────────────────────
-    const uid        = Math.random().toString(36).substring(2, 7);
-    registeredEmail     = `ankitqa.iihglobal+${uid}@gmail.com`;
-    registeredPassword  = registerData.validation.password;
+    const uid = Math.random().toString(36).substring(2, 7);
+    registeredEmail = `ankitqa.iihglobal+${uid}@gmail.com`;
+    registeredPassword = registerData.validation.password;
     registeredCompanyName = `Ankit QA AT ${uid}`;
 
     await registerPage.fillRegistrationForm({
@@ -115,7 +115,7 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     // ── Step 5: Stripe payment ──────────────────────────────────────────────
     console.log('✓ Polling for Stripe invoice email...');
     const invoiceEmailStart = new Date(Date.now() - 3 * 60 * 1000);
-    const rawInvoiceEmail   = await pollEmail('invoice', invoiceEmailStart, registeredEmail);
+    const rawInvoiceEmail = await pollEmail('invoice', invoiceEmailStart, registeredEmail);
     expect(rawInvoiceEmail, 'Invoice email not received').not.toBe('');
 
     const decodedInvoice = decodeQuotedPrintable(rawInvoiceEmail);
@@ -145,7 +145,7 @@ test.describe.serial('User Management — Users Tab Tests', () => {
   // beforeEach: Login with registered credentials → navigate to Users tab
   // ─────────────────────────────────────────────────────────────────────────────
   test.beforeEach(async ({ page }) => {
-    const loginPage    = new LoginPage(page);
+    const loginPage = new LoginPage(page);
     const userMgmtPage = new UserManagementPage(page);
 
     console.log(`\n── Logging in as ${registeredEmail} ──`);
@@ -280,8 +280,8 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_005: Inviting Full Access member ──');
 
-    const uid          = Math.random().toString(36).substring(2, 7);
-    const randomNum    = Math.floor(1000 + Math.random() * 9000);
+    const uid = Math.random().toString(36).substring(2, 7);
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
     const invitedEmail = `ankitqa.iihglobal+${uid}FA${randomNum}@gmail.com`;
     console.log(`Inviting: ${invitedEmail}`);
 
@@ -292,7 +292,7 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
     await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
-    const cells    = invitedRow.locator('td');
+    const cells = invitedRow.locator('td');
     const nameText = (await cells.nth(1).innerText()).trim();
     expect(nameText === '' || nameText === '-').toBe(true);
     await expect(cells.nth(2)).toContainText(invitedEmail);
@@ -311,8 +311,8 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_006: Inviting Read Only member ──');
 
-    const uid          = Math.random().toString(36).substring(2, 7);
-    const randomNum    = Math.floor(1000 + Math.random() * 9000);
+    const uid = Math.random().toString(36).substring(2, 7);
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
     const invitedEmail = `ankitqa.iihglobal+${uid}RO${randomNum}@gmail.com`;
     console.log(`Inviting: ${invitedEmail}`);
 
@@ -323,7 +323,7 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
     await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
-    const cells    = invitedRow.locator('td');
+    const cells = invitedRow.locator('td');
     const nameText = (await cells.nth(1).innerText()).trim();
     expect(nameText === '' || nameText === '-').toBe(true);
     await expect(cells.nth(2)).toContainText(invitedEmail);
