@@ -1,40 +1,174 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage, UserManagementPage } = require('../pages');
+const {
+  LoginPage,
+  UserManagementPage,
+  SubscriptionPage,
+  RegisterPage
+} = require('../pages');
+const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../utils/common.util');
+const registerData = require('../data/register.data.json');
 
 /**
  * User Management — Users Tab Tests
  *
- * Pre-condition: Uses an existing paid Expert company account so the Users tab
- * and Invite Member feature are fully accessible (payment already completed).
- *
- * Credentials: ankitqa.iihglobal+ex19069@gmail.com / Pa$$w0rd!
+ * Flow:
+ *   beforeAll  → Register fresh Expert account (FA=5, RO=1) → OTP → Stripe payment
+ *   beforeEach → Login with registered credentials → navigate to Users tab
+ *   Tests      → Users tab cases (TC_UM_001 to TC_UM_006)
  *
  * Run:
  *   npx playwright test tests/specs/user_management.spec.js
  */
 
-const PAID_EMAIL    = 'ankitqa.iihglobal+ex19069@gmail.com';
-const PAID_PASSWORD = 'Pa$$w0rd!';
+// Shared credentials populated by beforeAll
+let registeredEmail;
+let registeredPassword;
+let registeredCompanyName;
 
-test.describe('User Management — Users Tab Tests', () => {
-  let loginPage;
-  let userMgmtPage;
+test.describe.serial('User Management — Users Tab Tests', () => {
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // beforeAll: Register a fresh Expert account and complete Stripe payment
+  // ─────────────────────────────────────────────────────────────────────────────
+  test.beforeAll(async ({ browser }) => {
+    console.log('\n════ beforeAll: Registering fresh Expert account and completing payment ════');
+
+    const context = await browser.newContext();
+    const page    = await context.newPage();
+
+    const subPage      = new SubscriptionPage(page);
+    const registerPage = new RegisterPage(page);
+
+    // ── Step 1: Select Expert plan (FA=5, RO=1, GOALS=FC) ──────────────────
+    await page.context().clearCookies();
+
+    let loaded = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await subPage.navigateToSubscription();
+      try {
+        await expect(page.locator('h5', { hasText: /^Free$/i })).toBeVisible({ timeout: 5000 });
+        loaded = true;
+        break;
+      } catch {
+        console.log(`Subscription page load attempt ${attempt} failed. Retrying...`);
+        await page.waitForTimeout(3000);
+      }
+    }
+    if (!loaded) throw new Error('Failed to load subscription page after 3 attempts');
+
+    await subPage.selectPlan('Expert');
+    console.log('✓ Expert plan selected (FA=5 base, RO=0 base)');
+
+    // Add 1 Read-Only seat
+    await subPage.incrementReadOnly('Expert');
+    console.log('✓ Added 1 Read-Only seat');
+
+    // Select search goal FC
+    await subPage.selectSearchGoal('FC');
+    console.log('✓ Selected FC search goal');
+
+    await expect(subPage.grandTotal).toBeVisible();
+    const grandTotal = (await subPage.grandTotal.textContent()).trim();
+    console.log(`✓ Grand Total: ${grandTotal}`);
+
+    await subPage.clickNextCreateAccount();
+    await expect(page).toHaveURL(/.*\/register/);
+
+    // ── Step 2: Fill registration form ─────────────────────────────────────
+    const uid        = Math.random().toString(36).substring(2, 7);
+    registeredEmail     = `ankitqa.iihglobal+${uid}@gmail.com`;
+    registeredPassword  = registerData.validation.password;
+    registeredCompanyName = `Ankit QA AT ${uid}`;
+
+    await registerPage.fillRegistrationForm({
+      companyName: registeredCompanyName,
+      email: registeredEmail,
+      name: 'UM Admin',
+      password: registeredPassword,
+      confirmPassword: registeredPassword
+    });
+    await registerPage.acceptTerms();
+    await expect(registerPage.submitButton).toBeEnabled();
+
+    const testStartTime = new Date();
+    await registerPage.clickSubmit();
+    console.log('✓ Registration submitted. Polling for OTP email...');
+
+    // ── Step 3: OTP verification ────────────────────────────────────────────
+    const otpBody = await pollEmail('Your Verification code for Company Registration', testStartTime, registeredEmail);
+    expect(otpBody, 'OTP email not received').not.toBe('');
+    const otpMatch = otpBody.match(/\b\d{6}\b/);
+    expect(otpMatch, 'Could not extract OTP').not.toBeNull();
+    const otp = otpMatch[0];
+    console.log(`✓ OTP received: ${otp}`);
+
+    await registerPage.fillOtp(otp);
+    await registerPage.clickSubmit();
+    console.log('✓ OTP submitted');
+
+    // ── Step 4: Click Email Invoice ─────────────────────────────────────────
+    await expect(registerPage.emailInvoiceButton).toBeVisible({ timeout: 15000 });
+    await registerPage.clickEmailInvoice();
+    await expect(registerPage.invoiceDialogTitle).toBeVisible({ timeout: 30000 });
+    console.log('✓ Invoice sent');
+
+    // ── Step 5: Stripe payment ──────────────────────────────────────────────
+    console.log('✓ Polling for Stripe invoice email...');
+    const invoiceEmailStart = new Date(Date.now() - 3 * 60 * 1000);
+    const rawInvoiceEmail   = await pollEmail('invoice', invoiceEmailStart, registeredEmail);
+    expect(rawInvoiceEmail, 'Invoice email not received').not.toBe('');
+
+    const decodedInvoice = decodeQuotedPrintable(rawInvoiceEmail);
+    const invoiceUrlMatch = decodedInvoice.match(/https:\/\/invoice\.stripe\.com\/[^\s"'>]+/i);
+    expect(invoiceUrlMatch, 'Could not find Stripe invoice URL').not.toBeNull();
+    let stripeUrl = invoiceUrlMatch[0].replace(/[=]+$/, '').trim();
+    console.log(`✓ Stripe invoice URL extracted`);
+
+    const stripePage = await context.newPage();
+    await stripePage.goto(stripeUrl);
+    await stripePage.waitForLoadState('load');
+    await completeStripePayment(stripePage);
+    await stripePage.close();
+    console.log('✓ Stripe payment completed');
+
+    console.log('\n══════════════════════════════════════════════════════════');
+    console.log('REGISTERED CREDENTIALS');
+    console.log(`Company: ${registeredCompanyName}`);
+    console.log(`Email  : ${registeredEmail}`);
+    console.log(`Password: ${registeredPassword}`);
+    console.log('══════════════════════════════════════════════════════════\n');
+
+    await context.close();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // beforeEach: Login with registered credentials → navigate to Users tab
+  // ─────────────────────────────────────────────────────────────────────────────
   test.beforeEach(async ({ page }) => {
-    loginPage    = new LoginPage(page);
-    userMgmtPage = new UserManagementPage(page);
+    const loginPage    = new LoginPage(page);
+    const userMgmtPage = new UserManagementPage(page);
 
-    console.log('\n── Logging in with Paid Company Credentials ──');
+    console.log(`\n── Logging in as ${registeredEmail} ──`);
     await loginPage.navigateToLogin();
-    await loginPage.login(PAID_EMAIL, PAID_PASSWORD);
+    await loginPage.login(registeredEmail, registeredPassword);
     await expect(page).toHaveURL(/.*\/adhoc-search/, { timeout: 15000 });
-    console.log('✓ Logged in and redirected to Adhoc Search page');
+    console.log('✓ Logged in');
 
-    // Navigate to User Management → Users tab
+    // Poll until subscription is RENEWABLE (webhook may take a moment)
     await userMgmtPage.navigateToUserManagement();
-    await expect(page).toHaveURL(/.*\/user-management.*/, { timeout: 15000 });
+    await userMgmtPage.goToSubscriptionTab();
+    for (let i = 0; i < 10; i++) {
+      const status = await userMgmtPage.sub_cellStatus.innerText();
+      if (!status.toLowerCase().includes('unpaid')) break;
+      console.log(`[Attempt ${i + 1}] Subscription still Unpaid, waiting for webhook...`);
+      await page.waitForTimeout(3000);
+      await page.reload();
+      await userMgmtPage.tab_Subscription.waitFor({ state: 'visible', timeout: 10000 });
+      await userMgmtPage.goToSubscriptionTab();
+    }
+
     await userMgmtPage.goToUsersTab();
-    console.log('✓ Navigated to User Management → Users tab');
+    console.log('✓ Navigated to Users tab');
   });
 
   test.afterEach(async ({ page }, testInfo) => {
@@ -47,74 +181,66 @@ test.describe('User Management — Users Tab Tests', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TC_UM_001: Verify Users Tab UI renders all expected elements
+  // TC_UM_001: Verify Users tab renders all expected elements
   // ─────────────────────────────────────────────────────────────────────────────
-  test('TC_UM_001: Verify Users tab renders all expected elements', async () => {
+  test('TC_UM_001: Verify Users tab renders all expected elements', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_001: Verifying Users tab UI elements ──');
 
-    // Users tab should be active/visible
     await expect(userMgmtPage.tab_Users).toBeVisible();
-
-    // Toolbar controls
     await expect(userMgmtPage.searchInput).toBeVisible();
     await expect(userMgmtPage.filterButton).toBeVisible();
 
-    // Invite Member button should be ENABLED (payment already completed)
+    // Invite Member button must be ENABLED (payment completed)
     await expect(userMgmtPage.inviteMemberButton).toBeVisible();
     await expect(userMgmtPage.inviteMemberButton).toBeEnabled();
-    console.log('✓ Invite Member button is enabled (paid account)');
+    console.log('✓ Invite Member button is enabled (payment completed)');
 
-    // Data table structure
     await expect(userMgmtPage.table).toBeVisible();
     await expect(userMgmtPage.tableHead).toBeVisible();
     await expect(userMgmtPage.tableBody).toBeVisible();
 
-    // Column headers
     await expect(userMgmtPage.col_name).toContainText(/name/i);
     await expect(userMgmtPage.col_email).toContainText(/email/i);
     await expect(userMgmtPage.col_role).toContainText(/role/i);
     await expect(userMgmtPage.col_action).toBeVisible();
 
-    // At least one data row should be present (the admin row)
     await expect(userMgmtPage.tableRows.first()).toBeVisible({ timeout: 10000 });
     console.log('✓ All Users tab UI elements verified');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TC_UM_002: Verify Search by email filters table rows
+  // TC_UM_002: Verify search by email filters table rows
   // ─────────────────────────────────────────────────────────────────────────────
   test('TC_UM_002: Verify search by email filters the table correctly', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_002: Verifying search functionality ──');
 
-    // Get the email from the first row to use as search query
     const firstRowEmail = (await userMgmtPage.tableBody.locator('tr').first().locator('td').nth(2).innerText()).trim();
     console.log(`Searching for: ${firstRowEmail}`);
 
     await userMgmtPage.searchInput.fill(firstRowEmail);
-    await page.waitForTimeout(1000); // debounce
+    await page.waitForTimeout(1000);
 
-    // Matched row should be visible
     const matchedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: firstRowEmail });
     await expect(matchedRow).toBeVisible({ timeout: 10000 });
-    console.log('✓ Search filtered table and matched row is visible');
+    console.log('✓ Search filtered table — matched row visible');
 
-    // Clear search and verify rows are restored
     await userMgmtPage.searchInput.fill('');
     await page.waitForTimeout(1000);
     await expect(userMgmtPage.tableRows.first()).toBeVisible();
-    console.log('✓ Cleared search and table rows restored');
+    console.log('✓ Cleared search — table rows restored');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TC_UM_003: Verify Filter row toggles and filter fields are visible
+  // TC_UM_003: Verify Filter row toggles on and off
   // ─────────────────────────────────────────────────────────────────────────────
-  test('TC_UM_003: Verify Filter row toggles on and off', async () => {
+  test('TC_UM_003: Verify Filter row toggles on and off', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_003: Verifying Filter toggle ──');
 
-    // Initially filter row should not be visible
     await expect(userMgmtPage.filter_nameInput).not.toBeVisible();
 
-    // Click Filter to show filter row
     await userMgmtPage.toggleFilter();
     await expect(userMgmtPage.filter_nameInput).toBeVisible({ timeout: 5000 });
     await expect(userMgmtPage.filter_emailInput).toBeVisible();
@@ -122,31 +248,26 @@ test.describe('User Management — Users Tab Tests', () => {
     await expect(userMgmtPage.filter_statusSelect).toBeVisible();
     console.log('✓ Filter row visible with all filter inputs');
 
-    // Click Filter again to hide filter row
     await userMgmtPage.toggleFilter();
     await expect(userMgmtPage.filter_nameInput).not.toBeVisible();
     console.log('✓ Filter row hidden after toggling off');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TC_UM_004: Verify Invite Member modal opens and renders all fields
+  // TC_UM_004: Verify Invite Member modal opens and renders correctly
   // ─────────────────────────────────────────────────────────────────────────────
-  test('TC_UM_004: Verify Invite Member modal opens and renders correctly', async () => {
+  test('TC_UM_004: Verify Invite Member modal opens and renders correctly', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_004: Verifying Invite Member modal UI ──');
 
     await userMgmtPage.openInviteMemberModal();
-
-    // Modal title
     await expect(userMgmtPage.invite_title).toBeVisible({ timeout: 10000 });
-
-    // Modal fields
     await expect(userMgmtPage.invite_accessTypeSelect).toBeVisible();
     await expect(userMgmtPage.invite_emailInput).toBeVisible();
     await expect(userMgmtPage.invite_sendButton).toBeVisible();
     await expect(userMgmtPage.invite_closeButton).toBeVisible();
     console.log('✓ Invite Member modal renders all expected elements');
 
-    // Close modal
     await userMgmtPage.invite_closeButton.click();
     await expect(userMgmtPage.invite_title).not.toBeVisible({ timeout: 5000 });
     console.log('✓ Invite Member modal closed successfully');
@@ -155,23 +276,23 @@ test.describe('User Management — Users Tab Tests', () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // TC_UM_005: Invite a Full Access member and verify Pending status in table
   // ─────────────────────────────────────────────────────────────────────────────
-  test('TC_UM_005: Invite Full Access member — verify Pending status in table', async () => {
+  test('TC_UM_005: Invite Full Access member — verify Pending status in table', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_005: Inviting Full Access member ──');
 
-    const uid = Math.random().toString(36).substring(2, 7);
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const uid          = Math.random().toString(36).substring(2, 7);
+    const randomNum    = Math.floor(1000 + Math.random() * 9000);
     const invitedEmail = `ankitqa.iihglobal+${uid}FA${randomNum}@gmail.com`;
-    console.log(`Inviting Full Access member: ${invitedEmail}`);
+    console.log(`Inviting: ${invitedEmail}`);
 
     await userMgmtPage.inviteMember({ email: invitedEmail, accessType: 'Full Access' });
     await userMgmtPage.clickOkay();
     console.log('✓ Member invited successfully');
 
-    // Verify row appears in table with correct Pending details
     const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
     await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
-    const cells = invitedRow.locator('td');
+    const cells    = invitedRow.locator('td');
     const nameText = (await cells.nth(1).innerText()).trim();
     expect(nameText === '' || nameText === '-').toBe(true);
     await expect(cells.nth(2)).toContainText(invitedEmail);
@@ -180,29 +301,29 @@ test.describe('User Management — Users Tab Tests', () => {
     await expect(cells.nth(7)).toContainText(/expert/i);
     await expect(cells.nth(8)).toContainText(/Full/i);
     await expect(cells.nth(9)).toContainText('Renewable');
-    console.log('✓ Invited Full Access member row verified: blank name, email, User role, Pending, Expert, Full Access, Renewable');
+    console.log('✓ Full Access member verified: Pending, Expert, Full Access, Renewable');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TC_UM_006: Invite a Read Only member and verify Pending status in table
   // ─────────────────────────────────────────────────────────────────────────────
-  test('TC_UM_006: Invite Read Only member — verify Pending status in table', async () => {
+  test('TC_UM_006: Invite Read Only member — verify Pending status in table', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
     console.log('\n── TC_UM_006: Inviting Read Only member ──');
 
-    const uid = Math.random().toString(36).substring(2, 7);
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const uid          = Math.random().toString(36).substring(2, 7);
+    const randomNum    = Math.floor(1000 + Math.random() * 9000);
     const invitedEmail = `ankitqa.iihglobal+${uid}RO${randomNum}@gmail.com`;
-    console.log(`Inviting Read Only member: ${invitedEmail}`);
+    console.log(`Inviting: ${invitedEmail}`);
 
     await userMgmtPage.inviteMember({ email: invitedEmail, accessType: 'Read Only' });
     await userMgmtPage.clickOkay();
     console.log('✓ Member invited successfully');
 
-    // Verify row appears in table with correct Pending details
     const invitedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: invitedEmail });
     await expect(invitedRow).toBeVisible({ timeout: 10000 });
 
-    const cells = invitedRow.locator('td');
+    const cells    = invitedRow.locator('td');
     const nameText = (await cells.nth(1).innerText()).trim();
     expect(nameText === '' || nameText === '-').toBe(true);
     await expect(cells.nth(2)).toContainText(invitedEmail);
@@ -211,6 +332,6 @@ test.describe('User Management — Users Tab Tests', () => {
     await expect(cells.nth(7)).toContainText(/expert/i);
     await expect(cells.nth(8)).toContainText(/ReadOnly/i);
     await expect(cells.nth(9)).toContainText('Renewable');
-    console.log('✓ Invited Read Only member row verified: blank name, email, User role, Pending, Expert, Read Only, Renewable');
+    console.log('✓ Read Only member verified: Pending, Expert, Read Only, Renewable');
   });
 });
