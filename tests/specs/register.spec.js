@@ -353,3 +353,4 @@ test.describe('Registration Page E2E Tests', () => {
     await expect(page).toHaveURL(/.*\/login/);
   });
 });
+
