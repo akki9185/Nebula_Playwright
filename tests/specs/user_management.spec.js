@@ -31,6 +31,7 @@ test.describe.serial('User Management — Users Tab Tests', () => {
   // beforeAll: Register a fresh Expert account and complete Stripe payment
   // ─────────────────────────────────────────────────────────────────────────────
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(600000); // 10 minutes for full registration + Stripe payment
     console.log('\n════ beforeAll: Registering fresh Expert account and completing payment ════');
 
     const context = await browser.newContext();
@@ -92,9 +93,21 @@ test.describe.serial('User Management — Users Tab Tests', () => {
 
     const testStartTime = new Date();
     await registerPage.clickSubmit();
-    console.log('✓ Registration submitted. Polling for OTP email...');
+    console.log('✓ Registration submitted.');
+
+    // ── Promo Code field verification (runs while waiting for OTP email) ────
+    // The promo code field is visible on the registration page after submission
+    await expect(registerPage.promoCodeInput).toBeVisible({ timeout: 10000 });
+    await expect(registerPage.promoApplyButton).toBeVisible();
+    console.log('✓ Promo code input field and Apply button are visible');
+
+    // Click Apply and verify the promo code field becomes disabled
+    await registerPage.promoApplyButton.click();
+    await expect(registerPage.promoCodeInput).toBeDisabled({ timeout: 5000 });
+    console.log('✓ Promo code field is disabled after clicking Apply');
 
     // ── Step 3: OTP verification ────────────────────────────────────────────
+    console.log('Polling for OTP email...');
     const otpBody = await pollEmail('Your Verification code for Company Registration', testStartTime, registeredEmail);
     expect(otpBody, 'OTP email not received').not.toBe('');
     const otpMatch = otpBody.match(/\b\d{6}\b/);
@@ -105,6 +118,12 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     await registerPage.fillOtp(otp);
     await registerPage.clickSubmit();
     console.log('✓ OTP submitted');
+
+    // Poll for welcome email — ensures server has processed registration before continuing
+    const welcomeStart = new Date();
+    const welcomeBody = await pollEmail('User registration', welcomeStart, registeredEmail);
+    expect(welcomeBody, 'Welcome email not received').not.toBe('');
+    console.log('✓ Welcome email received');
 
     // ── Step 4: Click Email Invoice ─────────────────────────────────────────
     await expect(registerPage.emailInvoiceButton).toBeVisible({ timeout: 15000 });

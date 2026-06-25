@@ -11,16 +11,16 @@ class RegisterPage extends BasePage {
     this.nameInput = page.locator('#name');
     this.passwordInput = page.locator('#password');
     this.confirmPasswordInput = page.locator('#confirmPassword');
-    
+
     this.termsCheckbox = page.locator('#register-terms-checkbox');
     this.submitButton = page.locator('button[type="submit"]'); // AuthButton
-    
+
     // OTP fields
     this.otpInput = page.locator('input[placeholder*="OTP"]');
-    
+
     // Payment Options / Invoice
     this.emailInvoiceButton = page.locator('button', { hasText: /Email invoice and Pay/i });
-    
+
     // Invoice Dialog elements
     this.invoiceDialogTitle = page.locator('p').filter({ hasText: /^Invoice Sent!$/ });
     this.goToLoginButton = page.locator('button', { hasText: /Go to Login/i });

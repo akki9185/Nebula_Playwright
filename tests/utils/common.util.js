@@ -28,6 +28,27 @@ function decodeQuotedPrintable(str) {
  * Fill credit card inputs inside Stripe element iframe and submit payment
  */
 async function completeStripePayment(stripePage) {
+  await stripePage.waitForLoadState('load');
+  await stripePage.waitForTimeout(2000);
+
+  // ── Handle currency selection screen (new Stripe UI) ──────────────────────
+  // If a currency picker is shown, select USD and then click Card payment method
+  const usdOption = stripePage.locator('button, label, div').filter({ hasText: /^\$[\d,]+\.\d{2}$/ }).first();
+  if (await usdOption.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await usdOption.click();
+    console.log('✓ Selected USD currency on Stripe page');
+    await stripePage.waitForTimeout(1000);
+  }
+
+  // Click the Card payment method if shown on the main page (outside iframe)
+  const cardMethodBtn = stripePage.locator('button, [role="radio"]').filter({ hasText: /^card$/i }).first();
+  if (await cardMethodBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await cardMethodBtn.click();
+    console.log('✓ Clicked Card payment method on Stripe page');
+    await stripePage.waitForTimeout(1000);
+  }
+
+  // ── Fill card details inside Stripe iframe ────────────────────────────────
   const paymentIFrameLocator = stripePage.locator('iframe[src*="elements-inner-payment"]');
   await paymentIFrameLocator.waitFor({ state: 'visible', timeout: 25000 });
   const stripeCardFrame = stripePage.frameLocator('iframe[src*="elements-inner-payment"]');
@@ -37,7 +58,7 @@ async function completeStripePayment(stripePage) {
   const cardTab = stripeCardFrame.locator('text=Card').first();
   if (await cardTab.count() > 0) {
     await cardTab.click();
-    console.log('✓ Clicked Card payment method option inside iframe');
+    console.log('✓ Clicked Card tab inside iframe');
   }
 
   console.log('── Entering test credit card details on Stripe page ──');
