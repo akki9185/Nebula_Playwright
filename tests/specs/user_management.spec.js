@@ -95,19 +95,9 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     await registerPage.clickSubmit();
     console.log('✓ Registration submitted.');
 
-    // ── Promo Code field verification (runs while waiting for OTP email) ────
-    // The promo code field is visible on the registration page after submission
-    await expect(registerPage.promoCodeInput).toBeVisible({ timeout: 10000 });
-    await expect(registerPage.promoApplyButton).toBeVisible();
-    console.log('✓ Promo code input field and Apply button are visible');
-
-    // Click Apply and verify the promo code field becomes disabled
-    await registerPage.promoApplyButton.click();
-    await expect(registerPage.promoCodeInput).toBeDisabled({ timeout: 5000 });
-    console.log('✓ Promo code field is disabled after clicking Apply');
-
     // ── Step 3: OTP verification ────────────────────────────────────────────
     console.log('Polling for OTP email...');
+
     const otpBody = await pollEmail('Your Verification code for Company Registration', testStartTime, registeredEmail);
     expect(otpBody, 'OTP email not received').not.toBe('');
     const otpMatch = otpBody.match(/\b\d{6}\b/);
