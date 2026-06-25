@@ -18,7 +18,12 @@ class RegisterPage extends BasePage {
     // OTP fields
     this.otpInput = page.locator('input[placeholder*="OTP"]');
 
+    // Promo Code
+    this.promoCodeInput = page.locator('input[placeholder*="promo code" i]');
+    this.promoApplyButton = page.locator('button', { hasText: /^apply$/i });
+
     // Payment Options / Invoice
+
     this.emailInvoiceButton = page.locator('button', { hasText: /Email invoice and Pay/i });
 
     // Invoice Dialog elements
