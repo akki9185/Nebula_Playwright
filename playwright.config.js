@@ -32,7 +32,7 @@ module.exports = defineConfig({
 
     // Run headless in CI, headed locally for debugging
     // headless: process.env.CI ? true : false,
-    headless: false,
+    // headless: true,
 
     // Capture screenshot and video on failure for CI debugging
     screenshot: 'only-on-failure',
