@@ -77,8 +77,10 @@ Before billing completes, the user is redirected to the portal. The test asserts
 * Dynamically loops to invite, retrieve invitation links from Gmail, register, complete profile, verify via OTP, and activate **all** available Full Access and Read-Only members.
 * For every invited user, the test:
   * Polls Gmail to retrieve the invitation email containing the subject `${company_name} Invited`.
-  * Extracts the unique invitation/registration token link.
-  * Opens a separate unauthenticated tab context, navigates to the invitation URL, fills out the member profile name/password, and registers.
+  * Opens a separate unauthenticated tab context and navigates to the invitation URL.
+  * Verifies that the **Company Name** field is prefilled with the invited company name and is disabled.
+  * Verifies that the **Email** field is prefilled with the invited member's email address and is disabled.
+  * Fills out the member profile name/password and registers.
   * Polls Gmail for the Verification code (OTP) for the member, enters it, and completes registration.
   * Reloads the admin dashboard page, checking that the user status successfully transitioned from `Pending` to `Active` with their registered name.
 
