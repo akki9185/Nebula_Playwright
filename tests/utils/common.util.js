@@ -150,15 +150,15 @@ async function inviteAndRegisterMember({
   await invitePage.waitForLoadState('load');
   console.log('✓ Invitation register page loaded successfully');
 
-  // Verify Company Name is prefilled with invited company name and disabled
+  // Verify Company Name is prefilled with invited company name and is readonly (disabled for editing)
   await expect(inviteRegisterPage.companyNameInput).toHaveValue(companyName);
-  await expect(inviteRegisterPage.companyNameInput).toBeDisabled();
-  console.log('✓ Verified company name input is prefilled and disabled');
+  await expect(inviteRegisterPage.companyNameInput).toHaveAttribute('readonly');
+  console.log('✓ Verified company name input is prefilled and read-only');
 
-  // Verify Email is prefilled with invited email and disabled
+  // Verify Email is prefilled with invited email and is readonly (disabled for editing)
   await expect(inviteRegisterPage.emailInput).toHaveValue(invitedEmail);
-  await expect(inviteRegisterPage.emailInput).toBeDisabled();
-  console.log('✓ Verified email input is prefilled and disabled');
+  await expect(inviteRegisterPage.emailInput).toHaveAttribute('readonly');
+  console.log('✓ Verified email input is prefilled and read-only');
 
   const otpSentTime = new Date();
   const memberName = `${namePrefix} ${index}`;
