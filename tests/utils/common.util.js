@@ -269,6 +269,7 @@ async function findUserDynamically(page, userMgmtPage, targetRole, targetSeatTyp
     const row = rows.nth(i);
     const emailText = (await row.locator('td').nth(2).textContent()).trim();
     const roleText = (await row.locator('td').nth(3).textContent()).trim();
+    const statusText = (await row.locator('td').nth(6).textContent()).trim();
     const seatTypeText = (await row.locator('td').nth(8).textContent()).trim();
     const hasPrimaryChip = await row.locator('.MuiChip-root', { hasText: 'Primary' }).count() > 0;
 
@@ -276,6 +277,7 @@ async function findUserDynamically(page, userMgmtPage, targetRole, targetSeatTyp
 
     if (
       roleText.toLowerCase().includes(targetRole.toLowerCase()) &&
+      statusText.toLowerCase() === 'active' &&
       matchesSeatType &&
       emailText !== excludeEmail &&
       !hasPrimaryChip
