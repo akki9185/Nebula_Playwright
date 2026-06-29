@@ -188,6 +188,37 @@ test-results/screenshots/<TestCaseName>-failed.png
 
 ---
 
+### TC_UM_007: Verify registeredEmail is marked as Primary admin
+
+- **Description**: Verify that the main registered email (the primary contact who registered the account) displays a "Primary" status chip next to their name in the Users table.
+- **Pre-condition**: User is logged in as the primary company administrator and navigated to the Users tab.
+- **Steps**:
+  1. Locate the row in the Users table where the email matches `registeredEmail`.
+  2. Verify that the row is visible.
+  3. Verify that a chip with label **"Primary"** is rendered next to the admin's name.
+- **Expected Results**: The primary administrator is clearly labeled with a "Primary" chip in the user management table.
+
+---
+
+### TC_UM_008: Verify logged-in user cannot edit their own details
+
+- **Description**: Verify that the logged-in user cannot edit their own Role, Email, Status, Seat Type, and Renew Status fields when opening the Edit User modal for themselves.
+- **Pre-condition**: User is logged in and navigated to the Users tab.
+- **Steps**:
+  1. Locate the row in the Users table where the email matches `registeredEmail`.
+  2. Click the **...** menu button for that row and select **Edit**.
+  3. Verify that the Edit Member modal is visible.
+  4. Verify that the following inputs/select fields are disabled:
+     - **Role**
+     - **Email**
+     - **Status**
+     - **Seat Type**
+     - **Renew Status**
+  5. Click **Cancel** to close the modal.
+- **Expected Results**: The fields Role, Email, Status, Seat Type, and Renew Status are disabled and cannot be modified by the logged-in user for their own record.
+
+---
+
 ## 🛠️ Key Resilience Improvements
 
 1. **Subscription page retry**: Retries navigation up to 3 times to handle transient `net::ERR_ABORTED` errors.

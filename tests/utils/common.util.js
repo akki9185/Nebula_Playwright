@@ -226,9 +226,132 @@ async function inviteAndRegisterMember({
   console.log(`✓ Verified registered member details in Users table (name, email, role, Active status, expert subscription, ${accessType} seat, Renewable)`);
 }
 
+
+
+
+/**
+ * Dynamically finds a user email from the user management table matching specific criteria.
+ * Uses UI filter dropdowns to isolate the role and prevent virtual scrolling display issues.
+ */
+async function findUserDynamically(page, userMgmtPage, targetRole, targetSeatType, excludeEmail) {
+  // Map targetSeatType to match the actual cell text ('Full' or 'ReadOnly')
+  let seatMatch = targetSeatType;
+  if (targetSeatType && targetSeatType.toLowerCase().includes('full')) {
+    seatMatch = 'Full';
+  } else if (targetSeatType && targetSeatType.toLowerCase().includes('read')) {
+    seatMatch = 'ReadOnly';
+  }
+
+  // Clear search input
+  await userMgmtPage.searchUser('');
+  await page.waitForTimeout(1000);
+
+  // If filter inputs are not visible, click the filter toggle button
+  const isFilterVisible = await userMgmtPage.filter_roleSelect.isVisible().catch(() => false);
+  if (!isFilterVisible) {
+    await userMgmtPage.filterButton.click();
+    await page.waitForTimeout(1500);
+  }
+
+  // Select the target role in the filter dropdown
+  await userMgmtPage.filter_roleSelect.click();
+  await page.waitForTimeout(1000);
+  const option = page.locator('li[role="option"]').filter({ hasText: new RegExp(`^${targetRole}$`, 'i') });
+  await option.click();
+  await page.waitForTimeout(1500);
+
+  // Scan the rendered rows
+  const rows = userMgmtPage.tableRows;
+  const rowCount = await rows.count();
+  let foundEmail = null;
+
+  for (let i = 0; i < rowCount; i++) {
+    const row = rows.nth(i);
+    const emailText = (await row.locator('td').nth(2).textContent()).trim();
+    const roleText = (await row.locator('td').nth(3).textContent()).trim();
+    const seatTypeText = (await row.locator('td').nth(8).textContent()).trim();
+    const hasPrimaryChip = await row.locator('.MuiChip-root', { hasText: 'Primary' }).count() > 0;
+
+    const matchesSeatType = !seatMatch || seatTypeText.toLowerCase().includes(seatMatch.toLowerCase());
+
+    if (
+      roleText.toLowerCase().includes(targetRole.toLowerCase()) &&
+      matchesSeatType &&
+      emailText !== excludeEmail &&
+      !hasPrimaryChip
+    ) {
+      foundEmail = emailText;
+      break;
+    }
+  }
+
+  // Clear filters
+  await userMgmtPage.filter_clearButton.click();
+  await page.waitForTimeout(1000);
+
+  // Toggle filter row closed if it remains open
+  const isFilterStillVisible = await userMgmtPage.filter_roleSelect.isVisible().catch(() => false);
+  if (isFilterStillVisible) {
+    await userMgmtPage.filterButton.click();
+    await page.waitForTimeout(1000);
+  }
+
+  if (!foundEmail) {
+    throw new Error(`Dynamic search failed: Could not find user with Role: ${targetRole}${targetSeatType ? ', Seat Type: ' + targetSeatType : ''}`);
+  }
+
+  return foundEmail;
+}
+
+/**
+ * Ensures a candidate user with specific role and seat type exists.
+ * If the role is 'Admin' and no such user is found, it will locate a 'User' role member
+ * with the matching seat type and promote them to 'Admin'.
+ */
+async function ensureCandidateExists(page, userMgmtPage, targetRole, targetSeatType, excludeEmail) {
+  try {
+    return await findUserDynamically(page, userMgmtPage, targetRole, targetSeatType, excludeEmail);
+  } catch (error) {
+    if (targetRole.toLowerCase() === 'admin') {
+      console.log(`Candidate Admin not found. Promoting a ${targetSeatType || 'User'} role user to Admin...`);
+      // Find a user with Role = "User" and the desired seat type
+      const userEmail = await findUserDynamically(page, userMgmtPage, 'User', targetSeatType, excludeEmail);
+      
+      // Promote this user to Admin
+      await userMgmtPage.searchUser(userEmail);
+      const row = userMgmtPage.tableBody.locator('tr').filter({ hasText: userEmail });
+      await expect(row).toBeVisible({ timeout: 10000 });
+      await row.locator('button').last().click();
+      await userMgmtPage.actionMenu_editItem.click();
+
+      await expect(userMgmtPage.edit_modal).toBeVisible({ timeout: 8000 });
+      await userMgmtPage.edit_roleSelect.click();
+      await page.waitForTimeout(1000);
+      const adminOption = page.locator('li[role="option"]').filter({ hasText: /^Admin$/i });
+      await adminOption.click();
+      await page.waitForTimeout(1000);
+
+      await userMgmtPage.edit_saveButton.click();
+      
+      // Wait for success alert
+      const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+      await expect(successAlert).toBeVisible({ timeout: 10000 });
+      
+      // Clear search
+      await userMgmtPage.searchUser('');
+      await page.waitForTimeout(1000);
+
+      return userEmail;
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   pollEmail,
   decodeQuotedPrintable,
   completeStripePayment,
   inviteAndRegisterMember,
+  findUserDynamically,
+  ensureCandidateExists,
 };
