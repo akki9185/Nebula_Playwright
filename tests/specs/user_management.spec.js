@@ -343,5 +343,113 @@ test.describe.serial('User Management — Users Tab Tests', () => {
     await expect(cells.nth(9)).toContainText('Renewable');
     console.log('✓ Read Only member verified: Pending, Expert, Read Only, Renewable');
   });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TC_UM_007: Verify registeredEmail is marked as Primary admin
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('TC_UM_007: Verify registeredEmail is marked as Primary admin', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_007: Verifying primary admin status ──');
+
+    const adminRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: registeredEmail });
+    await expect(adminRow).toBeVisible({ timeout: 10000 });
+
+    const primaryChip = adminRow.locator('.MuiChip-root', { hasText: 'Primary' });
+    await expect(primaryChip).toBeVisible();
+    console.log('✓ Primary admin status verified successfully');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TC_UM_008: Verify logged-in user cannot edit their own details
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('TC_UM_008: Verify logged-in user cannot edit their own Role, Email, Status, Seat Type, and Renew Status', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_008: Verifying logged-in user self-edit restrictions ──');
+
+    // Find the row for the logged-in user
+    const selfRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: registeredEmail });
+    await expect(selfRow).toBeVisible({ timeout: 10000 });
+
+    // Open row action menu (...)
+    await selfRow.locator('button').last().click();
+    console.log('✓ Action menu opened');
+
+    // Click Edit
+    await userMgmtPage.actionMenu_editItem.click();
+    console.log('✓ Edit modal opened');
+
+    // Verify dialog/modal is visible
+    await expect(userMgmtPage.edit_modal).toBeVisible();
+
+    // Verify fields are disabled
+    const editRoleSelect = userMgmtPage.edit_modal.getByRole('combobox', { name: /role/i });
+    const editEmailInput = userMgmtPage.edit_modal.locator('input#email');
+    const editStatusSelect = userMgmtPage.edit_modal.locator('#status[role="combobox"]');
+    const editSeatSelect = userMgmtPage.edit_modal.locator('#viewType[role="combobox"]');
+    const editRenewSelect = userMgmtPage.edit_modal.locator('#renewable[role="combobox"]');
+
+    await expect(editRoleSelect).toBeDisabled();
+    await expect(editEmailInput).toBeDisabled();
+    await expect(editStatusSelect).toBeDisabled();
+    await expect(editSeatSelect).toBeDisabled();
+    await expect(editRenewSelect).toBeDisabled();
+    console.log('✓ Verified Role, Email, Status, Seat Type, and Renew Status fields are disabled');
+
+    // Cancel edit
+    await userMgmtPage.edit_cancelButton.click();
+    await expect(userMgmtPage.edit_modal).toBeHidden();
+    console.log('✓ Cancelled edit');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TC_UM_012: Verify Payment History Tab — Transactions, Invoices, and Invoice Modal Details
+  // ─────────────────────────────────────────────────────────────────────────────
+  test('TC_UM_012: Verify Payment History Tab — Transactions, Invoices, and Invoice Modal Details', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_012: Verifying Payment History tab ──');
+
+    // Go to Payment History Tab
+    await userMgmtPage.tab_PaymentHistory.click();
+    console.log('✓ Switched to Payment History tab');
+
+    // Verify "Transactions" sub-tab is active by default and contains a paid transaction row
+    await expect(userMgmtPage.payment_subtabTransactions).toBeVisible();
+    await expect(userMgmtPage.payment_tableRows).toHaveCount(1);
+    
+    const firstTxRow = userMgmtPage.payment_tableRows.first();
+    await expect(firstTxRow.locator('td').nth(2)).toContainText(/5,?100\.00/); // Expert Plan ($5000) + 1 RO seat ($15) + FC goal ($10) + 3 min extra seats ($75)
+    await expect(firstTxRow.locator('td').nth(4)).toContainText(/succeeded|paid/i);
+    console.log('✓ Verified transaction row contains correct payment amount and succeeded status');
+
+    // Switch to "Invoices" sub-tab
+    await userMgmtPage.switchPaymentSubTab('invoices');
+    console.log('✓ Switched to Invoices sub-tab');
+
+    // Verify invoice row is visible and has correct details
+    await expect(userMgmtPage.payment_tableRows).toHaveCount(1);
+    const firstInvoiceRow = userMgmtPage.payment_tableRows.first();
+    await expect(firstInvoiceRow.locator('td').nth(2)).toContainText(/5,?100\.00/);
+    await expect(firstInvoiceRow.locator('td').nth(3)).toContainText(/paid|succeeded/i);
+
+    // Open invoice detail dialog
+    await userMgmtPage.viewInvoice(0);
+    console.log('✓ Opened invoice detail modal');
+
+    // Verify dialog content
+    await expect(userMgmtPage.invoice_modal).toBeVisible();
+    await expect(userMgmtPage.invoice_modal.locator('text=Total Paid')).toBeVisible();
+    await expect(userMgmtPage.invoice_modal).toContainText(/5,?100\.00/);
+    await expect(userMgmtPage.invoice_modal.locator('text=Amount Due')).toBeVisible();
+    await expect(userMgmtPage.invoice_modal.locator('text=$0.00')).toBeVisible();
+
+    // Verify download/view PDF buttons inside modal
+    await expect(userMgmtPage.invoice_downloadBtn).toBeVisible();
+    await expect(userMgmtPage.invoice_viewPdfBtn).toBeVisible();
+    console.log('✓ Verified invoice details, payment totals, and action buttons in dialog');
+
+    // Close the invoice modal
+    await userMgmtPage.closeInvoiceModal();
+    console.log('✓ Closed invoice modal successfully');
+  });
 });
 

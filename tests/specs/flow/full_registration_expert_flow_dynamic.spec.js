@@ -265,8 +265,8 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // Make sure the Subscription tab is active/selected
       await userMgmtPage.tab_Subscription.click();
 
-      // Assert plan details on subscription page
-      await expect(userMgmtPage.sub_planNameValue).toContainText(/expert/i);
+      // Assert plan details on subscription page (shows No Active Subscription when unpaid)
+      await expect(userMgmtPage.sub_planNameValue).toContainText(/no active subscription/i);
 
       // Assert Subscription Table Cells show Unpaid status
       await expect(userMgmtPage.sub_cellName).toContainText(/expert/i);
@@ -308,13 +308,12 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // ─────────────────────────────────────────────────────────────────────────
       // 5c. Verify Payment History & Amount Due match Grand Total
       // ─────────────────────────────────────────────────────────────────────────
-      console.log('\n── Step 5c: Verifying Payment History status and Amount Due (SKIPPED) ──');
-      /*
+      console.log('\n── Step 5c: Verifying Payment History status and Amount Due ──');
       await userMgmtPage.goToPaymentHistoryTab();
       console.log('✓ Switched to Payment History tab');
 
       // Click the "Invoices" sub-tab button to load the invoice rows
-      await page.getByRole('button', { name: /^invoices$/i }).click();
+      await userMgmtPage.switchPaymentSubTab('invoices');
       console.log('✓ Switched to Invoices sub-tab');
 
       // Wait for table rows to be visible and assert on first invoice row
@@ -324,7 +323,7 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       const amountDueCell = firstInvoiceRow.locator('td').nth(2);
       const statusCell = firstInvoiceRow.locator('td').nth(3);
 
-      await expect(statusCell).toContainText('Unpaid');
+      await expect(statusCell).toContainText(/open|unpaid/i);
 
       // Dynamically compare amount due with stored grand total
       const amountDueText = (await amountDueCell.textContent()).trim();
@@ -338,7 +337,6 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       // Switch back to Subscription tab to keep UI state consistent
       await userMgmtPage.goToSubscriptionTab();
       console.log('✓ Navigated back to My Subscription page and verified Expert plan and Search Goals status is Unpaid');
-      */
 
       // ─────────────────────────────────────────────────────────────────────────
       // 6. Navigate back to Adhoc Search page
@@ -462,19 +460,19 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       }
 
       // Assert plan status is Active / Non Renewable on My Subscription tab
+      await expect(userMgmtPage.sub_planNameValue).toContainText(/expert/i);
       await expect(userMgmtPage.sub_cellStatus).not.toContainText(/unpaid/i);
       await expect(userMgmtPage.sub_subscribedSearchGoals).not.toContainText(/unpaid/i);
       console.log('✓ My Subscription page status is now active/paid!');
 
-      // Go to Payment History tab and verify invoice status is Paid (SKIPPED)
-      /*
+      // Go to Payment History tab and verify invoice status is Paid
       await userMgmtPage.goToPaymentHistoryTab();
+      await userMgmtPage.switchPaymentSubTab('invoices');
       const firstInvoiceRowPaid = userMgmtPage.payment_tableRows.first();
       await expect(firstInvoiceRowPaid).toBeVisible({ timeout: 15000 });
       const statusCellPaid = firstInvoiceRowPaid.locator('td').nth(3);
       await expect(statusCellPaid).toContainText(/Paid/i, { timeout: 20000 });
       console.log('✓ Invoice payment verified successfully! Invoice status is now Paid.');
-      */
 
       // Navigate to Adhoc Search page and verify restrictions are gone
       await adhocPage.navigateToAdhocSearch();

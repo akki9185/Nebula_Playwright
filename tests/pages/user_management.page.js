@@ -61,7 +61,7 @@ class UserManagementPage extends BasePage {
     this.actionMenu_deleteItem = page.getByRole('menuitem', { name: /^delete$/i });
     this.actionMenu_changePasswordItem = page.getByRole('menuitem', { name: /change password/i });
     this.actionMenu_resendInviteItem = page.getByRole('menuitem', { name: /resend invite/i });
-    this.actionMenu_setPrimaryItem = page.getByRole('menuitem', { name: /set as primary/i });
+    this.actionMenu_setPrimaryItem = page.getByRole('menuitem').filter({ hasText: /set as primary/i });
 
     // Invite Member Modal
     this.invite_title = page.getByText(/invite a team member/i);
@@ -74,13 +74,13 @@ class UserManagementPage extends BasePage {
     this.invite_successOkayButton = page.locator('button', { hasText: 'Okay' });
 
     // Edit User Modal (Update Member)
-    this.edit_modal = page.getByRole('dialog');
-    this.edit_title = page.getByRole('dialog').getByText(/update member/i);
-    this.edit_roleSelect = page.getByRole('dialog').getByRole('combobox', { name: /role/i });
-    this.edit_seatSelect = page.getByRole('dialog').getByRole('combobox', { name: /seat type/i });
-    this.edit_renewSelect = page.getByRole('dialog').getByRole('combobox', { name: /renew status/i });
-    this.edit_saveButton = page.getByRole('dialog').getByRole('button', { name: /save|update/i });
-    this.edit_cancelButton = page.getByRole('dialog').getByRole('button', { name: /cancel/i });
+    this.edit_modal = page.locator('.MuiModal-root').filter({ hasText: /update member/i });
+    this.edit_title = this.edit_modal.getByText(/update member/i);
+    this.edit_roleSelect = this.edit_modal.getByRole('combobox', { name: /role/i });
+    this.edit_seatSelect = this.edit_modal.locator('#viewType[role="combobox"]');
+    this.edit_renewSelect = this.edit_modal.locator('#renewable[role="combobox"]');
+    this.edit_saveButton = this.edit_modal.getByRole('button', { name: /save|update/i });
+    this.edit_cancelButton = this.edit_modal.getByRole('button', { name: /cancel/i });
 
     // Delete Confirm Dialog
     this.delete_dialog = page.getByRole('dialog');
@@ -135,14 +135,17 @@ class UserManagementPage extends BasePage {
     // ════════════════════════════════════════════════════════════════════════
     // ── TAB 5: PAYMENT HISTORY ──────────────────────────────────────────────
     // ════════════════════════════════════════════════════════════════════════
+    this.payment_subtabTransactions = page.getByRole('tab', { name: /^transactions$/i });
+    this.payment_subtabInvoices = page.getByRole('tab', { name: /^invoices$/i });
     this.payment_table = page.locator('table').first();
     this.payment_tableRows = page.locator('table tbody tr');
-    this.payment_viewInvoiceBtn = page.getByRole('button', { name: /view invoice/i });
+    this.payment_viewInvoiceBtn = page.getByRole('button', { name: /^view$/i });
 
     // Invoice viewer modal
     this.invoice_modal = page.getByRole('dialog');
-    this.invoice_closeButton = page.getByRole('dialog').getByRole('button', { name: /close/i });
-    this.invoice_downloadBtn = page.getByRole('dialog').getByRole('button', { name: /download/i });
+    this.invoice_closeButton = page.getByRole('dialog').locator('button').filter({ has: page.locator('[data-testid="CloseIcon"]') });
+    this.invoice_downloadBtn = page.getByRole('dialog').locator('a', { hasText: /download invoice/i });
+    this.invoice_viewPdfBtn = page.getByRole('dialog').locator('a', { hasText: /view invoice/i });
   }
 
   // ── Navigation ───────────────────────────────────────────────────────────
@@ -152,7 +155,7 @@ class UserManagementPage extends BasePage {
    */
   async navigateToUserManagement() {
     await this.navigate('/user-management');
-    await this.page.waitForLoadState('networkidle');
+    await this.tab_Users.waitFor({ state: 'visible', timeout: 15000 });
   }
 
   // ── Tab Switching ─────────────────────────────────────────────────────────
@@ -266,11 +269,25 @@ class UserManagementPage extends BasePage {
   // ── Payment History Tab Actions ───────────────────────────────────────────
 
   /**
+   * Switch between Transactions and Invoices sub-tabs.
+   * @param {'transactions' | 'invoices'} subtabName
+   */
+  async switchPaymentSubTab(subtabName) {
+    if (subtabName.toLowerCase() === 'transactions') {
+      await this.payment_subtabTransactions.click();
+      await this.page.waitForTimeout(500);
+    } else {
+      await this.payment_subtabInvoices.click();
+      await this.page.waitForTimeout(500);
+    }
+  }
+
+  /**
    * View the invoice for a specific payment row (0-based index).
    * @param {number} rowIndex
    */
   async viewInvoice(rowIndex = 0) {
-    await this.payment_tableRows.nth(rowIndex).getByRole('button', { name: /view invoice/i }).click();
+    await this.payment_tableRows.nth(rowIndex).getByRole('button', { name: /^view$/i }).click();
     await this.invoice_modal.waitFor({ state: 'visible' });
   }
 
