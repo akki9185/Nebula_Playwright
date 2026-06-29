@@ -4,9 +4,9 @@ const {
   UserManagementPage,
   SubscriptionPage,
   RegisterPage
-} = require('../pages');
-const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../utils/common.util');
-const registerData = require('../data/register.data.json');
+} = require('../../pages');
+const { pollEmail, decodeQuotedPrintable, completeStripePayment } = require('../../utils/common.util');
+const registerData = require('../../data/register.data.json');
 
 /**
  * User Management — Users Tab Tests

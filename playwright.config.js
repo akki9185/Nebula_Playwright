@@ -17,22 +17,22 @@ module.exports = defineConfig({
   // Retry failed tests once in CI to reduce flakiness from transient network issues
   retries: process.env.CI ? 1 : 0,
 
-  // Timeout per test: 30s locally, 60s in CI (slower environments)
-  timeout: process.env.CI ? 60000 : 30000,
+  // Timeout per test: 120s locally
+  timeout: 120000,
 
   reporter: [
     // Always show list output in the terminal
     ['list'],
-    // Generate an HTML report (opens automatically unless in CI)
-    ['html', { open: process.env.CI ? 'never' : 'on-failure', outputFolder: 'playwright-report' }],
+    // // Generate an HTML report (opens automatically unless in CI)
+    // ['html', { open: process.env.CI ? 'never' : 'on-failure', outputFolder: 'playwright-report' }],
   ],
 
   use: {
     baseURL: process.env.BASE_URL || 'http://206.189.23.26:3003/webapp/',
 
-    // Run headless in CI, headed locally for debugging
-    // headless: process.env.CI ? true : false,
-    // headless: true,
+    // Run in headed mode
+    headless: false,
+    slowMo: 2000, // slow down each action by 2000ms so execution is visible
 
     // Capture screenshot and video on failure for CI debugging
     screenshot: 'only-on-failure',

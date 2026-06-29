@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage, UserManagementPage } = require('../pages');
-const { findUserDynamically, ensureCandidateExists } = require('../utils/common.util');
+const { LoginPage, UserManagementPage } = require('../../pages');
+const { findUserDynamically, ensureCandidateExists } = require('../../utils/common.util');
 
 let registeredEmail = 'ankitqa.iihglobal+nt18x@gmail.com';
 let registeredPassword = 'Pa$$w0rd!';
