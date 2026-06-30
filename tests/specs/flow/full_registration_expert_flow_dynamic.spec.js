@@ -35,14 +35,9 @@ test.describe('Master Expert Registration and Login Flow (Dynamic)', () => {
       test.setTimeout(1500000); // 25 minutes
 
       // Parse configuration from environment variables
-      if (process.env.FA === undefined) {
-        throw new Error("FA environment variable is required");
-      }
-      if (process.env.RO === undefined) {
-        throw new Error("RO environment variable is required");
-      }
-      if (process.env.GOALS === undefined) {
-        throw new Error("GOALS environment variable is required");
+      if (process.env.FA === undefined || process.env.RO === undefined || process.env.GOALS === undefined) {
+        test.skip(true, 'Skipping dynamic flow test because environment variables FA, RO, or GOALS are not defined');
+        return;
       }
 
       const requestedFA = parseInt(process.env.FA, 10);
