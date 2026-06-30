@@ -101,6 +101,18 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     const initialRenewStatus = (await cells.nth(9).innerText()).trim(); // "Renewable" or "Non Renewable"
     console.log(`Initial details - Seat: ${initialSeatType}, Renew: ${initialRenewStatus}`);
 
+    // Go to subscription tab and read initial available counts
+    await userMgmtPage.goToSubscriptionTab();
+    const initialFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+    const initialReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+    const initialAvailable = initialSeatType.toLowerCase().includes('read') ? initialReadOnlyAvailable : initialFullAvailable;
+    console.log(`[Status Toggle Verification] Initial Available Seats for ${initialSeatType}: ${initialAvailable}`);
+
+    // Go back to Users tab
+    await userMgmtPage.goToUsersTab();
+    await userMgmtPage.searchUser(candidateEmail);
+    await page.waitForTimeout(1500);
+
     // Open Edit modal
     await row.locator('button').last().click();
     await userMgmtPage.actionMenu_editItem.click();
@@ -133,6 +145,26 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     const inactiveRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
     await expect(inactiveRow.locator('td').nth(6)).toContainText('Inactive');
     console.log('✓ Table correctly reflects Inactive status');
+
+    // Verify available seat count increased on Subscription tab
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+    let deactivatedFullAvailable, deactivatedReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        deactivatedFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        deactivatedReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+        const currentAvailable = initialSeatType.toLowerCase().includes('read') ? deactivatedReadOnlyAvailable : deactivatedFullAvailable;
+        if (currentAvailable === initialAvailable + 1) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    const afterDeactivationAvailable = initialSeatType.toLowerCase().includes('read') ? deactivatedReadOnlyAvailable : deactivatedFullAvailable;
+    expect(afterDeactivationAvailable).toBe(initialAvailable + 1);
+    console.log(`✓ Verified available seat count increased after deactivation: ${afterDeactivationAvailable}`);
+
+    // Go back to Users tab
+    await userMgmtPage.goToUsersTab();
 
     // Verify login is blocked when Inactive
     console.log('── Verifying login is blocked for Inactive user ──');
@@ -193,6 +225,26 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     const activeRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
     await expect(activeRow.locator('td').nth(6)).toContainText('Active');
     console.log('✓ Table correctly reflects Active status');
+
+    // Verify available seat count decreased on Subscription tab
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+    let activatedFullAvailable, activatedReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        activatedFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        activatedReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+        const currentAvailable = initialSeatType.toLowerCase().includes('read') ? activatedReadOnlyAvailable : activatedFullAvailable;
+        if (currentAvailable === initialAvailable) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    const afterActivationAvailable = initialSeatType.toLowerCase().includes('read') ? activatedReadOnlyAvailable : activatedFullAvailable;
+    expect(afterActivationAvailable).toBe(initialAvailable);
+    console.log(`✓ Verified available seat count decreased after reactivation: ${afterActivationAvailable}`);
+
+    // Go back to Users tab
+    await userMgmtPage.goToUsersTab();
 
     // Verify login is allowed when Active
     console.log('── Verifying login is allowed for Active user ──');
