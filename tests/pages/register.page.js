@@ -24,7 +24,7 @@ class RegisterPage extends BasePage {
 
     // Payment Options / Invoice
 
-    this.emailInvoiceButton = page.locator('button', { hasText: /Email invoice and Pay/i });
+    this.emailInvoiceButton = page.locator('button').filter({ hasText: /Email invoice and Pay|Confirm Subscription/i });
 
     // Invoice Dialog elements
     this.invoiceDialogTitle = page.locator('p').filter({ hasText: /^Invoice Sent!$/ });

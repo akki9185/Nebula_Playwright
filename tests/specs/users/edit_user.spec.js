@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage, UserManagementPage } = require('../../pages');
-const { findUserDynamically, ensureCandidateExists } = require('../../utils/common.util');
+const { LoginPage, UserManagementPage, RegisterPage } = require('../../pages');
+const { findUserDynamically, ensureCandidateExists, pollEmail, decodeQuotedPrintable } = require('../../utils/common.util');
 const { runStatusToggleAndLoginVerification } = require('../../utils/helpers.util');
 
 let registeredEmail = 'ankitqa.iihglobal+nt18x@gmail.com';
@@ -332,7 +332,7 @@ test('TC_UM_013: Verify changing user Renew Status updates and reflects in user 
 
     const editModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
     await expect(editModal).toBeVisible({ timeout: 8000 });
-    
+
     // Change Renew Status
     await userMgmtPage.edit_renewSelect.click();
     await page.waitForTimeout(1000);
@@ -465,14 +465,14 @@ test('TC_UM_016: Verify changing user seat type affects available seat counts of
     for (let i = 0; i < 5; i++) {
         updatedFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
         updatedReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
-        
-        if (updatedFullAvailable === initialFullAvailable + expectedFullChange && 
+
+        if (updatedFullAvailable === initialFullAvailable + expectedFullChange &&
             updatedReadOnlyAvailable === initialReadOnlyAvailable + expectedReadOnlyChange) {
             break;
         }
         await page.waitForTimeout(1000);
     }
-    
+
     console.log(`Updated Available Seats - Full: ${updatedFullAvailable}, ReadOnly: ${updatedReadOnlyAvailable}`);
     expect(updatedFullAvailable).toBe(initialFullAvailable + expectedFullChange);
     expect(updatedReadOnlyAvailable).toBe(initialReadOnlyAvailable + expectedReadOnlyChange);
@@ -509,18 +509,310 @@ test('TC_UM_016: Verify changing user seat type affects available seat counts of
     for (let i = 0; i < 5; i++) {
         finalFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
         finalReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
-        
-        if (finalFullAvailable === initialFullAvailable && 
+
+        if (finalFullAvailable === initialFullAvailable &&
             finalReadOnlyAvailable === initialReadOnlyAvailable) {
             break;
         }
         await page.waitForTimeout(1000);
     }
-    
+
     console.log(`Final Available Seats - Full: ${finalFullAvailable}, ReadOnly: ${finalReadOnlyAvailable}`);
     expect(finalFullAvailable).toBe(initialFullAvailable);
     expect(finalReadOnlyAvailable).toBe(initialReadOnlyAvailable);
     console.log('✓ Verified available seat counts of both types are successfully restored');
+});
+
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_017: Change Email Feature - Verify editing email of Pending user resends invitation, invalidates old link, registers on new link, and checks seats
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_017: Change Email Feature - Verify editing email of Pending user resends invitation, invalidates old link, registers on new link, and checks seats', async ({ page }) => {
+    test.setTimeout(240000);
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_017: Change Email Feature - Verify editing email of Pending user ──');
+
+    const editModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
+
+    // 1. Get initial available seats from My Subscription page
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+    let initialFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+    let initialReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+    console.log(`Initial Available Seats - Full: ${initialFullAvailable}, ReadOnly: ${initialReadOnlyAvailable}`);
+
+    // If there are no Full Access seats available, clean up a previous test user to free a seat
+    if (initialFullAvailable === 0) {
+        console.log('No available Full Access seats. Cleaning up a previous test user...');
+        await userMgmtPage.goToUsersTab();
+        await page.waitForTimeout(1500);
+        await userMgmtPage.searchUser('ankitqa.iihglobal+');
+        await page.waitForTimeout(2000);
+
+        const rows = userMgmtPage.tableRows;
+        const rowCount = await rows.count();
+        console.log(`Found ${rowCount} potential test users for cleanup.`);
+        for (let i = 0; i < rowCount; i++) {
+            const row = rows.nth(i);
+            const statusText = (await row.locator('td').nth(6).textContent()).trim();
+            const emailText = (await row.locator('td').nth(2).textContent()).trim();
+            const seatTypeText = (await row.locator('td').nth(8).textContent()).trim(); // 8th column is seat type
+            console.log(`Row ${i}: Email="${emailText}", Status="${statusText}", SeatType="${seatTypeText}"`);
+
+            // Delete if the user is Active, has Full Access seat, and is a temporary test user (excluding the logged-in admin)
+            if (statusText.toLowerCase() === 'active' &&
+                seatTypeText.toLowerCase().includes('full') &&
+                emailText.includes('ankitqa.iihglobal+') &&
+                emailText !== 'ankitqa.iihglobal+nt18x@gmail.com') {
+                console.log(`Deleting user ${emailText} to free a Full Access seat...`);
+                await row.locator('button').last().click();
+                await userMgmtPage.actionMenu_deleteItem.click();
+                await userMgmtPage.delete_confirmButton.click();
+
+                const deleteAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|deleted/i }).first();
+                await expect(deleteAlert).toBeVisible({ timeout: 10000 });
+                console.log('✓ Success notification is visible after deleting the user');
+
+                // Wait for the seat to be freed
+                await userMgmtPage.goToSubscriptionTab();
+                await page.waitForTimeout(2000);
+                initialFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+                initialReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+                console.log(`Updated Available Seats - Full: ${initialFullAvailable}, ReadOnly: ${initialReadOnlyAvailable}`);
+                break;
+            }
+        }
+    }
+
+    await userMgmtPage.goToUsersTab();
+    await page.waitForTimeout(1500);
+
+    // 2. Direct invite member: Create a brand new user
+    const uid = Math.random().toString(36).substring(2, 7);
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const pendingEmail = `ankitqa.iihglobal+${uid}PEND${randomNum}@gmail.com`;
+    console.log(`Inviting a new user: ${pendingEmail}`);
+
+    const inviteStartTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    await userMgmtPage.inviteMember({ email: pendingEmail, accessType: 'Full Access' });
+    await userMgmtPage.clickOkay();
+    await page.waitForTimeout(1500);
+
+    // Poll for invitation email to get the old invite URL
+    const emailMessage = await pollEmail('Invited', inviteStartTime, pendingEmail);
+    expect(emailMessage).toBeTruthy();
+    const decodedBody = decodeQuotedPrintable(emailMessage);
+    const inviteUrlMatch = decodedBody.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
+    expect(inviteUrlMatch).toBeTruthy();
+    const oldInviteUrl = inviteUrlMatch[0].replace(/[=]+$/, '').trim();
+    console.log(`✓ Got Old Invitation URL: ${oldInviteUrl}`);
+
+    // 3. Edit the email of the pending user
+    await userMgmtPage.searchUser(pendingEmail);
+    await page.waitForTimeout(1500);
+    const editRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: pendingEmail });
+    await editRow.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+
+    // Verify edit modal is visible
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+
+    // Generate updated email
+    const uid2 = Math.random().toString(36).substring(2, 7);
+    const randomNum2 = Math.floor(1000 + Math.random() * 9000);
+    const updatedEmail = `ankitqa.iihglobal+${uid2}UPD${randomNum2}@gmail.com`;
+    console.log(`Updating email from ${pendingEmail} to ${updatedEmail}`);
+
+    // Fill in new email and save
+    const emailInput = editModal.locator('input#email');
+    await emailInput.fill(updatedEmail);
+
+    const updateStartTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    await userMgmtPage.edit_saveButton.click();
+
+    // Verify success snackbar
+    const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log('✓ Success notification is visible after updating email');
+
+    // Verify updated email in the table
+    await userMgmtPage.searchUser(updatedEmail);
+    await page.waitForTimeout(1500);
+    const updatedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: updatedEmail });
+    await expect(updatedRow).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Verification: Table correctly displays the updated email: ${updatedEmail}`);
+
+    // 5. Try to Register With the Old Email Invitation URL
+    console.log('── Verifying registration fails with the old invitation link ──');
+    const oldInviteContext = await page.context().browser().newContext();
+    const oldInvitePage = await oldInviteContext.newPage();
+    await oldInvitePage.goto(oldInviteUrl);
+    await oldInvitePage.waitForLoadState('load');
+    await oldInvitePage.waitForTimeout(3000);
+
+    const currentUrl = oldInvitePage.url();
+    console.log(`Current URL with old invite link: ${currentUrl}`);
+
+    const oldRegisterPageObj = new RegisterPage(oldInvitePage);
+    const isOldSubmitVisible = await oldRegisterPageObj.submitButton.isVisible().catch(() => false);
+    expect(isOldSubmitVisible).toBe(true);
+
+    console.log('Attempting to submit registration with old invitation...');
+    await oldRegisterPageObj.fillRegistrationForm({
+        name: 'Old User Reg',
+        password: 'Pa$$w0rd!',
+        confirmPassword: 'Pa$$w0rd!'
+    });
+    await oldRegisterPageObj.acceptTerms();
+
+    const oldOtpSentTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    await oldRegisterPageObj.clickSubmit();
+    console.log('✓ First register submit clicked. Polling for old email OTP code...');
+
+    // Poll for the OTP code sent to the old (pendingEmail) address
+    const oldOtpMessage = await pollEmail('Verification code', oldOtpSentTime, pendingEmail);
+    expect(oldOtpMessage).toBeTruthy();
+    const oldOtpMatch = oldOtpMessage.match(/\b\d{6}\b/);
+    expect(oldOtpMatch).toBeTruthy();
+    const oldOtp = oldOtpMatch[0];
+    console.log(`✓ Received OTP code for old email: ${oldOtp}`);
+
+    // Fill OTP and click submit (Register button)
+    await oldRegisterPageObj.fillOtp(oldOtp);
+    await oldRegisterPageObj.clickSubmit();
+    await oldInvitePage.waitForTimeout(3000);
+
+    // Expecting error message to appear (e.g. invalid invitation or token error)
+    const errorMessage = oldInvitePage.locator('p, span, div, h1, h2, h3, h4, h5, h6, label').filter({ hasText: /invalid|expired|fail|error/i }).first();
+    await expect(errorMessage).toBeVisible({ timeout: 15000 });
+    const errorText = await errorMessage.textContent();
+    console.log(`✓ Verified: Error displayed on page when attempting to register: "${errorText.trim()}"`);
+
+    // Verify registration did not redirect to the dashboard
+    expect(oldInvitePage.url()).not.toContain('adhoc-search');
+
+    await oldInvitePage.close();
+    await oldInviteContext.close();
+
+    // 6. Try to register with new Email and Do Register
+    console.log('── Registering user using the updated email invitation link ──');
+
+    // Poll for the new invitation email sent to the updated email address
+    console.log(`Polling for invitation email sent to updated email: ${updatedEmail}`);
+    const newEmailMessage = await pollEmail('Invited', updateStartTime, updatedEmail);
+    expect(newEmailMessage).toBeTruthy();
+    const newDecodedBody = decodeQuotedPrintable(newEmailMessage);
+    const newInviteUrlMatch = newDecodedBody.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
+    expect(newInviteUrlMatch).toBeTruthy();
+    const newInviteUrl = newInviteUrlMatch[0].replace(/[=]+$/, '').trim();
+    console.log(`✓ Got New Invitation URL: ${newInviteUrl}`);
+
+    const newInviteContext = await page.context().browser().newContext();
+    const newInvitePage = await newInviteContext.newPage();
+    await newInvitePage.goto(newInviteUrl);
+    await newInvitePage.waitForLoadState('load');
+    console.log('✓ New Invitation register page loaded successfully');
+
+    const newRegisterPageObj = new RegisterPage(newInvitePage);
+    const memberName = 'Updated User Reg';
+
+    // Fill the registration form
+    await newRegisterPageObj.fillRegistrationForm({
+        name: memberName,
+        password: 'Pa$$w0rd!',
+        confirmPassword: 'Pa$$w0rd!'
+    });
+    await newRegisterPageObj.acceptTerms();
+    await expect(newRegisterPageObj.submitButton).toBeEnabled();
+
+    const newOtpSentTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    await newRegisterPageObj.clickSubmit();
+    console.log('✓ First register submit clicked. Taking debug screenshot...');
+    await newInvitePage.screenshot({ path: 'test-results/register_submit_debug.png' });
+    console.log('✓ Debug screenshot saved to test-results/register_submit_debug.png');
+    console.log('Polling for updated email OTP code...');
+
+    // Poll for the OTP code sent to the updatedEmail address
+    const newOtpMessage = await pollEmail('Verification code', newOtpSentTime, updatedEmail);
+    expect(newOtpMessage).toBeTruthy();
+    const newOtpMatch = newOtpMessage.match(/\b\d{6}\b/);
+    expect(newOtpMatch).toBeTruthy();
+    const newOtp = newOtpMatch[0];
+    console.log(`✓ Received OTP code for updated email: ${newOtp}`);
+
+    // Fill OTP and click submit (Register button)
+    await newRegisterPageObj.fillOtp(newOtp);
+    await newRegisterPageObj.clickSubmit();
+    console.log('✓ Second register submit clicked. Waiting 5s for redirection...');
+    await newInvitePage.waitForTimeout(5000);
+    await newInvitePage.screenshot({ path: 'test-results/register_final_debug.png' });
+    console.log('✓ Final register debug screenshot saved.');
+
+    // Wait for redirection to dashboard (adhoc-search)
+    await expect(newInvitePage).toHaveURL(/.*\/adhoc-search/, { timeout: 30000 });
+    console.log('✓ Updated user registered successfully and redirected to dashboard');
+
+    await newInvitePage.close();
+    await newInviteContext.close();
+
+    // 7. Checked Available Seat
+    console.log('── Checking available seat counts on My Subscription page ──');
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+
+    let afterRegFullAvailable, afterRegReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        afterRegFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        afterRegReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+
+        if (afterRegFullAvailable === initialFullAvailable - 1) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    console.log(`After Registration Available Seats - Full: ${afterRegFullAvailable}, ReadOnly: ${afterRegReadOnlyAvailable}`);
+    expect(afterRegFullAvailable).toBe(initialFullAvailable - 1);
+    console.log('✓ Verified: Available Full Access seat count decreased by 1');
+
+    // 8. Delete Registered User and Check Available seats
+    console.log('── Deleting the registered user ──');
+    await userMgmtPage.goToUsersTab();
+    await page.waitForTimeout(1500);
+
+    await userMgmtPage.searchUser(updatedEmail);
+    await page.waitForTimeout(1500);
+    const deleteRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: updatedEmail });
+    await expect(deleteRow).toBeVisible({ timeout: 10000 });
+
+    await deleteRow.locator('button').last().click();
+    await userMgmtPage.actionMenu_deleteItem.click();
+    await userMgmtPage.delete_confirmButton.click();
+
+    // Wait for delete success snackbar
+    const deleteAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|deleted/i }).first();
+    await expect(deleteAlert).toBeVisible({ timeout: 10000 });
+    console.log('✓ Success notification is visible after deleting the user');
+
+    // Check available seats are restored
+    console.log('── Checking available seat counts after deleting the user ──');
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+
+    let finalFullAvailable, finalReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        finalFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        finalReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+
+        if (finalFullAvailable === initialFullAvailable) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    console.log(`Final Available Seats - Full: ${finalFullAvailable}, ReadOnly: ${finalReadOnlyAvailable}`);
+    expect(finalFullAvailable).toBe(initialFullAvailable);
+    console.log('✓ Verified: Available Full Access seat count returned to initial count');
 });
 
 

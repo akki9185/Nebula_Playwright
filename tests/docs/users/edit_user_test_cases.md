@@ -151,3 +151,30 @@ npx playwright test tests/specs/users/edit_user.spec.js -g "TC_UM_016"
   - **Read Only to Full Access Restoration**:
     - Restores the candidate user's seat type back to `Full Access`.
     - **Subscription Seats Impact**: The available Full Access seat count must **decrease** by 1, and the available Read-Only seat count must **increase** by 1 (returning to their initial counts).
+
+---
+
+### TC_UM_017: Change Email Feature - Verify editing email of Pending user resends invitation, invalidates old link, registers on new link, and checks seats
+- **Description**: Verify that updating the email address of a user in a "Pending" status triggers a new invitation email to the updated email address, invalidates the old link, permits successful registration on the new link, updates seat counts, and that deleting the user restores the seat counts.
+- **Steps**:
+  1. Navigate to the **Subscription** tab and record the initial available Full Access and Read-Only seat counts.
+  2. Switch back to the **Users** tab.
+  3. Click **Invite Member**, enter a new candidate email, and click Send.
+  4. Wait for the invitation email to arrive and extract the link (this will serve as the "old invitation link").
+  5. Search for the newly invited pending user, open the action menu, and select **Edit**.
+  6. Enter a new, unique email address in the Email field and click Save.
+  7. Verify that the table grid immediately updates and displays the new email address for the pending user.
+  8. In a new browser context, navigate to the old invitation link.
+  9. Attempt to register by filling out the form, submitting to receive the OTP, entering the OTP, and clicking Register. Verify that registration fails with an error and does not redirect to the dashboard. Close the browser context.
+  10. Wait for a new invitation email to arrive at the updated email address and extract the new registration link.
+  11. In a new browser context, navigate to the new invitation link and complete registration (fill form, submit, retrieve OTP sent to updated email, enter OTP, and register). Verify redirection to the `/adhoc-search` dashboard. Close the browser context.
+  12. Navigate to the **Subscription** tab and verify the available Full Access seat count has decreased by 1.
+  13. Switch back to the **Users** tab, search for the registered user, open the action menu, and click **Delete**. Confirm the deletion.
+  14. Navigate to the **Subscription** tab and verify the available Full Access seat count returns to its initial value.
+- **Verification Points**:
+  - **Grid Update**: The user's email address in the grid must update to the new email address.
+  - **Old Link Invalidation**: Submitting registration using the old invitation link must fail/be rejected by the backend, displaying an error and preventing dashboard redirection.
+  - **New Link Success**: Registering via the new invitation link with the updated email must succeed, redirecting the user to `/adhoc-search`.
+  - **Seat Count decrement**: The available Full Access seat count on the Subscription page must decrease by 1 after the new user successfully registers.
+  - **User Deletion**: The user must be successfully deleted from the Users management grid.
+  - **Seat Count restoration**: The available Full Access seat count must increase by 1 (restoring the original available seats) after the registered user is deleted.
