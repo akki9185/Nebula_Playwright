@@ -116,6 +116,11 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     await inactiveOption.click();
     await page.waitForTimeout(1000);
 
+    // Verify Seat Type and Renew Status are disabled when Inactive is selected
+    await expect(userMgmtPage.edit_seatSelect).toBeDisabled();
+    await expect(userMgmtPage.edit_renewSelect).toBeDisabled();
+    console.log('✓ Seat Type and Renew Status are disabled when status is Inactive');
+
     // Save changes
     await userMgmtPage.edit_saveButton.click();
     const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
@@ -136,8 +141,13 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     const loginPage = new LoginPage(loginPageInstance);
     await loginPage.navigateToLogin();
     await loginPage.login(candidateEmail, 'Pa$$w0rd!');
+    // Assert specific error message for Inactive accounts is displayed
+    const inactiveError = loginPageInstance.locator('p').filter({ hasText: /Inactive account/i });
+    await expect(inactiveError).toBeVisible({ timeout: 10000 });
+    await expect(inactiveError).toHaveText(/Inactive account\. Please contact admin/i);
+
     await expect(loginPageInstance).not.toHaveURL(/.*\/adhoc-search/, { timeout: 10000 });
-    console.log('✓ Login blocked successfully for Inactive user');
+    console.log('✓ Login blocked successfully for Inactive user (correct error message shown)');
     await loginPageInstance.close();
     await loginContext.close();
 
