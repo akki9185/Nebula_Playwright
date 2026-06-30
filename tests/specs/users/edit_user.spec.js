@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { LoginPage, UserManagementPage } = require('../../pages');
 const { findUserDynamically, ensureCandidateExists } = require('../../utils/common.util');
+const { runStatusToggleAndLoginVerification } = require('../../utils/helpers.util');
 
 let registeredEmail = 'ankitqa.iihglobal+nt18x@gmail.com';
 let registeredPassword = 'Pa$$w0rd!';
@@ -300,3 +301,95 @@ test('TC_UM_011: Verify User role cannot be set as Primary Admin (seat type irre
     await userMgmtPage.searchUser('');
     await page.waitForTimeout(1000);
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_013: Verify changing user Renew Status updates and reflects in user listing table
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_013: Verify changing user Renew Status updates and reflects in user listing table', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_013: Verify user Renew Status updates and reflects in table ──');
+
+    const candidateEmail = await findUserDynamically(page, userMgmtPage, 'User', '', registeredEmail);
+    console.log(`Candidate for Renew Status update: ${candidateEmail}`);
+
+    // Search for the candidate email
+    await userMgmtPage.searchUser(candidateEmail);
+    await page.waitForTimeout(1500);
+    const candidateRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
+    await expect(candidateRow).toBeVisible({ timeout: 10000 });
+
+    const cells = candidateRow.locator('td');
+    const initialStatus = (await cells.nth(9).innerText()).trim();
+    console.log(`Initial Renew Status: ${initialStatus}`);
+
+    const targetStatus = initialStatus === 'Renewable' ? 'Non Renewable' : 'Renewable';
+    console.log(`Target Renew Status: ${targetStatus}`);
+
+    // Open row action menu (...)
+    await candidateRow.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+
+    const editModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+    
+    // Change Renew Status
+    await userMgmtPage.edit_renewSelect.click();
+    await page.waitForTimeout(1000);
+    const targetOption = page.locator('li[role="option"]').filter({ hasText: new RegExp(`^${targetStatus}$`, 'i') });
+    await targetOption.click();
+    await page.waitForTimeout(1000);
+
+    // Save changes
+    await userMgmtPage.edit_saveButton.click();
+    const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log('✓ Success notification is visible');
+
+    // Wait and verify table reflects updated status
+    await userMgmtPage.searchUser(candidateEmail);
+    await page.waitForTimeout(1500);
+    const updatedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
+    await expect(updatedRow.locator('td').nth(9)).toContainText(targetStatus);
+    console.log(`✓ Table correctly reflects updated status: ${targetStatus}`);
+
+    // ── Restore: Change it back to initialStatus to keep DB clean ──
+    console.log(`── Restoring user Renew Status back to: ${initialStatus} ──`);
+    await updatedRow.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+
+    await userMgmtPage.edit_renewSelect.click();
+    await page.waitForTimeout(1000);
+    const initialOption = page.locator('li[role="option"]').filter({ hasText: new RegExp(`^${initialStatus}$`, 'i') });
+    await initialOption.click();
+    await page.waitForTimeout(1000);
+
+    await userMgmtPage.edit_saveButton.click();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Restored original status: ${initialStatus}`);
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_014: Verify User role status changes Active <> Inactive affect login permissions
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_014: Verify User role status changes Active <> Inactive affect login permissions', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_014: Verify User status changes Active <> Inactive affect login ──');
+    await runStatusToggleAndLoginVerification(page, userMgmtPage, 'User');
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_015: Verify Admin role status changes Active <> Inactive affect login permissions
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_015: Verify Admin role status changes Active <> Inactive affect login permissions', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_015: Verify Admin status changes Active <> Inactive affect login ──');
+    await runStatusToggleAndLoginVerification(page, userMgmtPage, 'Admin');
+});
+
+
+
+
