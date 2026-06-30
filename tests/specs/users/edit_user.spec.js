@@ -391,5 +391,139 @@ test('TC_UM_015: Verify Admin role status changes Active <> Inactive affect logi
 });
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_016: Verify changing user seat type affects available seat counts of both types
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_016: Verify changing user seat type affects available seat counts of both types', async ({ page }) => {
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_016: Verify changing user seat type affects available seat counts ──');
+
+    // 1. Go to subscription tab and read initial available counts
+    await userMgmtPage.goToSubscriptionTab();
+    const initialFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+    const initialReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+    console.log(`Initial Available Seats - Full: ${initialFullAvailable}, ReadOnly: ${initialReadOnlyAvailable}`);
+
+    // 2. Go back to Users tab
+    await userMgmtPage.goToUsersTab();
+
+    // 3. Find an active User candidate
+    const candidateEmail = await findUserDynamically(page, userMgmtPage, 'User', '', registeredEmail);
+    console.log(`Found candidate user: ${candidateEmail}`);
+
+    // 4. Search and locate candidate user row
+    await userMgmtPage.searchUser(candidateEmail);
+    await page.waitForTimeout(1500);
+    const row = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
+    await expect(row).toBeVisible({ timeout: 10000 });
+
+    // 5. Read their current seat type
+    const cells = row.locator('td');
+    const initialSeatType = (await cells.nth(8).innerText()).trim(); // "Full" or "ReadOnly"
+    console.log(`Candidate initial seat type: ${initialSeatType}`);
+
+    // 6. Determine target seat type and expected changes
+    let targetSeatType, expectedFullChange, expectedReadOnlyChange, targetOptionText, restoreOptionText;
+    if (initialSeatType.toLowerCase().includes('full')) {
+        targetSeatType = 'ReadOnly';
+        targetOptionText = /^Read Only/i;
+        restoreOptionText = /^Full/i;
+        expectedFullChange = 1;
+        expectedReadOnlyChange = -1;
+    } else {
+        targetSeatType = 'Full';
+        targetOptionText = /^Full/i;
+        restoreOptionText = /^Read Only/i;
+        expectedFullChange = -1;
+        expectedReadOnlyChange = 1;
+    }
+
+    // 7. Open Edit modal and change seat type to target
+    await row.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+
+    const editModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+
+    await userMgmtPage.edit_seatSelect.click();
+    await page.waitForTimeout(1000);
+    const targetOption = page.locator('li[role="option"]').filter({ hasText: targetOptionText }).first();
+    await targetOption.click();
+    await page.waitForTimeout(1000);
+
+    // Save changes
+    await userMgmtPage.edit_saveButton.click();
+    const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Changed seat type to ${targetSeatType}`);
+
+    // 8. Verify updated available seat counts on My Subscription page
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+
+    let updatedFullAvailable, updatedReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        updatedFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        updatedReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+        
+        if (updatedFullAvailable === initialFullAvailable + expectedFullChange && 
+            updatedReadOnlyAvailable === initialReadOnlyAvailable + expectedReadOnlyChange) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    
+    console.log(`Updated Available Seats - Full: ${updatedFullAvailable}, ReadOnly: ${updatedReadOnlyAvailable}`);
+    expect(updatedFullAvailable).toBe(initialFullAvailable + expectedFullChange);
+    expect(updatedReadOnlyAvailable).toBe(initialReadOnlyAvailable + expectedReadOnlyChange);
+    console.log('✓ Verified available seat counts of both types are affected correctly');
+
+    // 9. Go back to Users tab
+    await userMgmtPage.goToUsersTab();
+
+    // 10. Restore candidate's original seat type
+    await userMgmtPage.searchUser(candidateEmail);
+    await page.waitForTimeout(1500);
+    const rowRestore = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
+    await expect(rowRestore).toBeVisible({ timeout: 10000 });
+
+    await rowRestore.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+
+    await userMgmtPage.edit_seatSelect.click();
+    await page.waitForTimeout(1000);
+    const restoreOption = page.locator('li[role="option"]').filter({ hasText: restoreOptionText }).first();
+    await restoreOption.click();
+    await page.waitForTimeout(1000);
+
+    await userMgmtPage.edit_saveButton.click();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Restored seat type back to ${initialSeatType}`);
+
+    // 11. Verify seat counts are back to initial on Subscription tab
+    await userMgmtPage.goToSubscriptionTab();
+    await page.waitForTimeout(2000);
+
+    let finalFullAvailable, finalReadOnlyAvailable;
+    for (let i = 0; i < 5; i++) {
+        finalFullAvailable = parseInt((await userMgmtPage.sub_cellFullAccessAvailable.innerText()).trim(), 10);
+        finalReadOnlyAvailable = parseInt((await userMgmtPage.sub_cellReadOnlyAvailable.innerText()).trim(), 10);
+        
+        if (finalFullAvailable === initialFullAvailable && 
+            finalReadOnlyAvailable === initialReadOnlyAvailable) {
+            break;
+        }
+        await page.waitForTimeout(1000);
+    }
+    
+    console.log(`Final Available Seats - Full: ${finalFullAvailable}, ReadOnly: ${finalReadOnlyAvailable}`);
+    expect(finalFullAvailable).toBe(initialFullAvailable);
+    expect(finalReadOnlyAvailable).toBe(initialReadOnlyAvailable);
+    console.log('✓ Verified available seat counts of both types are successfully restored');
+});
+
+
+
 
 
