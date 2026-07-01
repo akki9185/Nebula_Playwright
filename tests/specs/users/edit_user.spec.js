@@ -816,6 +816,163 @@ test('TC_UM_017: Change Email Feature - Verify editing email of Pending user res
 });
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TC_UM_018: Change Email Feature - Active User Case
+// ─────────────────────────────────────────────────────────────────────────────
+test('TC_UM_018: Change Email Feature - Verify editing email of Active user triggers notification, blocks login on old email, and permits login on new email', async ({ page }) => {
+    test.setTimeout(480000);
+    const userMgmtPage = new UserManagementPage(page);
+    console.log('\n── TC_UM_018: Change Email Feature - Active User Case ──');
 
+    // 1. Invite a new user
+    const uid = Math.random().toString(36).substring(2, 7);
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const initialEmail = `ankitqa.iihglobal+${uid}ACT${randomNum}@gmail.com`;
+    console.log(`Inviting a new user for activation: ${initialEmail}`);
 
+    const inviteStartTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    await userMgmtPage.inviteMember({ email: initialEmail, accessType: 'Full Access' });
+    await userMgmtPage.clickOkay();
+    await page.waitForTimeout(1500);
+
+    // 2. Poll for invite, register and complete registration to make the user status Active
+    const emailMessage = await pollEmail('Invited', inviteStartTime, initialEmail);
+    expect(emailMessage).toBeTruthy();
+    const decodedBody = decodeQuotedPrintable(emailMessage);
+    const inviteUrlMatch = decodedBody.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
+    expect(inviteUrlMatch).toBeTruthy();
+    const inviteUrl = inviteUrlMatch[0].replace(/[=]+$/, '').trim();
+    console.log(`✓ Got Invitation URL: ${inviteUrl}`);
+
+    const inviteContext = await page.context().browser().newContext();
+    const invitePage = await inviteContext.newPage();
+    await invitePage.goto(inviteUrl);
+    await invitePage.waitForLoadState('load');
+    console.log('✓ Invitation register page loaded successfully');
+
+    const registerPageObj = new RegisterPage(invitePage);
+    const memberName = 'Active User Reg';
+
+    await registerPageObj.fillRegistrationForm({
+        name: memberName,
+        password: 'Pa$$w0rd!',
+        confirmPassword: 'Pa$$w0rd!'
+    });
+    await registerPageObj.acceptTerms();
+    await expect(registerPageObj.submitButton).toBeEnabled();
+
+    const otpSentTime = new Date(Date.now() - 30000);
+    await registerPageObj.clickSubmit();
+    console.log('✓ Submit clicked. Polling for OTP...');
+
+    const otpMessage = await pollEmail('Verification code', otpSentTime, initialEmail);
+    expect(otpMessage).toBeTruthy();
+    const otpMatch = otpMessage.match(/\b\d{6}\b/);
+    expect(otpMatch).toBeTruthy();
+    const otp = otpMatch[0];
+    console.log(`✓ Received OTP code: ${otp}`);
+
+    await registerPageObj.fillOtp(otp);
+    await registerPageObj.clickSubmit();
+    console.log('✓ OTP submitted. Waiting for redirection...');
+
+    await expect(invitePage).toHaveURL(/.*\/adhoc-search/, { timeout: 30000 });
+    console.log('✓ User registered successfully and redirected to dashboard (Status is now Active)');
+
+    await invitePage.close();
+    await inviteContext.close();
+
+    // 3. Change the email of the Active user
+    await userMgmtPage.goToUsersTab();
+    await page.waitForTimeout(1500);
+    await userMgmtPage.searchUser(initialEmail);
+    await page.waitForTimeout(1500);
+
+    const editRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: initialEmail });
+    await editRow.locator('button').last().click();
+    await userMgmtPage.actionMenu_editItem.click();
+
+    const editModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
+    await expect(editModal).toBeVisible({ timeout: 8000 });
+
+    const uid2 = Math.random().toString(36).substring(2, 7);
+    const randomNum2 = Math.floor(1000 + Math.random() * 9000);
+    const updatedEmail = `ankitqa.iihglobal+${uid2}ACTUPD${randomNum2}@gmail.com`;
+    console.log(`Updating Active user email from ${initialEmail} to ${updatedEmail}`);
+
+    const emailInput = editModal.locator('input#email');
+    await emailInput.fill(updatedEmail);
+
+    const updateStartTime = new Date(Date.now() - 30000);
+    await userMgmtPage.edit_saveButton.click();
+
+    const successAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+    await expect(successAlert).toBeVisible({ timeout: 10000 });
+    console.log('✓ Success notification visible after updating Active user email');
+
+    await userMgmtPage.searchUser(updatedEmail);
+    await page.waitForTimeout(1500);
+    const updatedRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: updatedEmail });
+    await expect(updatedRow).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Verification: Table correctly displays the updated email: ${updatedEmail}`);
+
+    // 4. Verify the update email is sent to the new email address
+    console.log(`Polling for "Email Address Updated" notification at new email: ${updatedEmail}`);
+    const updateEmailMessage = await pollEmail('Email Address Updated', updateStartTime, updatedEmail);
+    expect(updateEmailMessage).toBeTruthy();
+    console.log('✓ "Email Address Updated" notification email received successfully');
+
+    // Decode and verify login button/link exists
+    const decodedUpdateBody = decodeQuotedPrintable(updateEmailMessage);
+    const loginLinkMatch = decodedUpdateBody.match(/href="([^"]+)"[^>]*>Login/i);
+    expect(loginLinkMatch).toBeTruthy();
+    const loginLink = loginLinkMatch[1].replace(/[=]+$/, '').trim();
+    console.log(`✓ Extracted Login URL from email: ${loginLink}`);
+
+    // 5. Verify login permissions (Old vs New Email)
+    console.log('── Verifying login permissions ──');
+    const loginVerifyContext = await page.context().browser().newContext();
+    const loginVerifyPage = await loginVerifyContext.newPage();
+    const loginPageObj = new LoginPage(loginVerifyPage);
+
+    // Try old email
+    console.log(`Attempting login with old email (should fail): ${initialEmail}`);
+    await loginVerifyPage.goto(loginLink);
+    await loginVerifyPage.waitForLoadState('load');
+    await loginPageObj.login(initialEmail, 'Pa$$w0rd!');
+
+    // Expect error toast or block message
+    const errorMsg = loginVerifyPage.locator('.MuiAlert-message, [role="alert"]').first();
+    await expect(errorMsg).toBeVisible({ timeout: 10000 });
+    const errorText = await errorMsg.textContent();
+    console.log(`✓ Login correctly blocked with old email: "${errorText.trim()}"`);
+
+    // Try new email
+    console.log(`Attempting login with new email (should succeed): ${updatedEmail}`);
+    await loginVerifyPage.reload();
+    await loginPageObj.login(updatedEmail, 'Pa$$w0rd!');
+    await expect(loginVerifyPage).toHaveURL(/.*\/adhoc-search/, { timeout: 15000 });
+    console.log('✓ Successfully logged in with the new updated email!');
+
+    await loginVerifyPage.close();
+    await loginVerifyContext.close();
+
+    // 6. Clean up: Delete the registered active user to restore seats
+    console.log('── Deleting the registered active user to restore seats ──');
+    await userMgmtPage.goToUsersTab();
+    await page.waitForTimeout(2000);
+    await userMgmtPage.searchUser(updatedEmail);
+    await page.waitForTimeout(2000);
+
+    const deleteRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: updatedEmail });
+    await expect(deleteRow).toBeVisible({ timeout: 15000 });
+    await deleteRow.locator('button').last().click();
+    await page.waitForTimeout(1000);
+    await page.locator('[role="menuitem"]').filter({ hasText: /^delete$/i }).click();
+    await userMgmtPage.delete_confirmButton.click();
+
+    const deleteAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|deleted/i }).first();
+    await expect(deleteAlert).toBeVisible({ timeout: 10000 });
+    console.log('✓ Success notification is visible after deleting the user');
+});
 
