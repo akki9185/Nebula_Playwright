@@ -830,7 +830,7 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     const initialEmail = `ankitqa.iihglobal+${uid}ACT${randomNum}@gmail.com`;
     console.log(`Inviting a new user for activation: ${initialEmail}`);
 
-    const inviteStartTime = new Date(Date.now() - 30000); // 30s buffer for IMAP clock skew
+    const inviteStartTime = new Date(Date.now() - 30000);
     await userMgmtPage.inviteMember({ email: initialEmail, accessType: 'Full Access' });
     await userMgmtPage.clickOkay();
     await page.waitForTimeout(1500);
@@ -851,10 +851,9 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     console.log('✓ Invitation register page loaded successfully');
 
     const registerPageObj = new RegisterPage(invitePage);
-    const memberName = 'Active User Reg';
 
     await registerPageObj.fillRegistrationForm({
-        name: memberName,
+        name: 'Active User Reg',
         password: 'Pa$$w0rd!',
         confirmPassword: 'Pa$$w0rd!'
     });
@@ -922,7 +921,6 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     expect(updateEmailMessage).toBeTruthy();
     console.log('✓ "Email Address Updated" notification email received successfully');
 
-    // Decode and verify login button/link exists
     const decodedUpdateBody = decodeQuotedPrintable(updateEmailMessage);
     const loginLinkMatch = decodedUpdateBody.match(/href="([^"]+)"[^>]*>Login/i);
     expect(loginLinkMatch).toBeTruthy();
@@ -935,19 +933,16 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     const loginVerifyPage = await loginVerifyContext.newPage();
     const loginPageObj = new LoginPage(loginVerifyPage);
 
-    // Try old email
     console.log(`Attempting login with old email (should fail): ${initialEmail}`);
     await loginVerifyPage.goto(loginLink);
     await loginVerifyPage.waitForLoadState('load');
     await loginPageObj.login(initialEmail, 'Pa$$w0rd!');
 
-    // Expect error toast or block message
     const errorMsg = loginVerifyPage.locator('.MuiAlert-message, [role="alert"]').first();
     await expect(errorMsg).toBeVisible({ timeout: 10000 });
     const errorText = await errorMsg.textContent();
     console.log(`✓ Login correctly blocked with old email: "${errorText.trim()}"`);
 
-    // Try new email
     console.log(`Attempting login with new email (should succeed): ${updatedEmail}`);
     await loginVerifyPage.reload();
     await loginPageObj.login(updatedEmail, 'Pa$$w0rd!');
@@ -960,12 +955,12 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     // 6. Clean up: Delete the registered active user to restore seats
     console.log('── Deleting the registered active user to restore seats ──');
     await userMgmtPage.goToUsersTab();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1500);
     await userMgmtPage.searchUser(updatedEmail);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1500);
 
     const deleteRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: updatedEmail });
-    await expect(deleteRow).toBeVisible({ timeout: 15000 });
+    await expect(deleteRow).toBeVisible({ timeout: 10000 });
     await deleteRow.locator('button').last().click();
     await page.waitForTimeout(1000);
     await page.locator('[role="menuitem"]').filter({ hasText: /^delete$/i }).click();
@@ -975,4 +970,3 @@ test('TC_UM_018: Change Email Feature - Verify editing email of Active user trig
     await expect(deleteAlert).toBeVisible({ timeout: 10000 });
     console.log('✓ Success notification is visible after deleting the user');
 });
-
