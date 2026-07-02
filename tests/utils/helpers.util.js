@@ -1,6 +1,33 @@
 const { expect } = require('@playwright/test');
-const { LoginPage, UserManagementPage } = require('../pages');
-const { inviteAndRegisterMember } = require('./common.util');
+const { LoginPage, UserManagementPage, RegisterPage } = require('../pages');
+const { inviteAndRegisterMember, pollEmail, decodeQuotedPrintable } = require('./common.util');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: Dynamically find table column indices by text content
+// ─────────────────────────────────────────────────────────────────────────────
+async function getTableColumnIndices(userMgmtPage) {
+    const headers = userMgmtPage.tableHead.locator('th');
+    const count = await headers.count();
+    let emailIdx = 2;
+    let roleIdx = 3;
+    let statusIdx = 4;
+    let seatIdx = 6;
+    let renewIdx = 7;
+
+    console.log(`[DEBUG] Header count in table: ${count}`);
+    for (let i = 0; i < count; i++) {
+        const text = (await headers.nth(i).innerText()).trim().toLowerCase();
+        console.log(`[DEBUG] Header index ${i}: "${text}"`);
+        if (text.includes('email')) emailIdx = i;
+        if (text.includes('role')) roleIdx = i;
+        if (text.includes('status')) statusIdx = i;
+        if (text.includes('seat')) seatIdx = i;
+        if (text.includes('renew')) renewIdx = i;
+    }
+
+    console.log(`[DEBUG] Resolved indices -> emailIdx: ${emailIdx}, roleIdx: ${roleIdx}, statusIdx: ${statusIdx}`);
+    return { emailIdx, roleIdx, statusIdx, seatIdx, renewIdx };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Get candidate with known password
@@ -9,16 +36,21 @@ async function getCandidateWithKnownPassword(page, userMgmtPage, targetRole) {
     await userMgmtPage.searchUser('');
     await page.waitForTimeout(1000);
 
+    const { emailIdx, roleIdx, statusIdx } = await getTableColumnIndices(userMgmtPage);
+
     const rows = userMgmtPage.tableRows;
     const rowCount = await rows.count();
     let foundEmail = null;
 
+    console.log(`[DEBUG] Total rows in table: ${rowCount}`);
     for (let i = 0; i < rowCount; i++) {
         const row = rows.nth(i);
-        const emailText = (await row.locator('td').nth(2).textContent()).trim();
-        const roleText = (await row.locator('td').nth(3).textContent()).trim();
-        const statusText = (await row.locator('td').nth(6).textContent()).trim();
+        const emailText = (await row.locator('td').nth(emailIdx).textContent()).trim();
+        const roleText = (await row.locator('td').nth(roleIdx).textContent()).trim();
+        const statusText = (await row.locator('td').nth(statusIdx).textContent()).trim();
         const hasPrimaryChip = await row.locator('.MuiChip-root', { hasText: 'Primary' }).count() > 0;
+
+        console.log(`[DEBUG] Row ${i}: Email="${emailText}", Role="${roleText}", Status="${statusText}", hasPrimaryChip=${hasPrimaryChip}`);
 
         if (
             emailText.startsWith('ankitqa.iihglobal+') &&
@@ -62,8 +94,7 @@ async function getCandidateWithKnownPassword(page, userMgmtPage, targetRole) {
         } else {
             console.log('No existing active test user with known password found. Registering a new one...');
             const randomNum = Math.floor(1000 + Math.random() * 9000);
-            const registerData = require('../data/register.data.json');
-            const companyName = registerData.register.companyName;
+            const companyName = 'Ankit QA AT nt18x';
             const uid = 'nt18x';
             await inviteAndRegisterMember({
                 page,
@@ -81,13 +112,14 @@ async function getCandidateWithKnownPassword(page, userMgmtPage, targetRole) {
     return foundEmail;
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Run status toggle and login verification flow
 // ─────────────────────────────────────────────────────────────────────────────
 async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRole) {
     const candidateEmail = await getCandidateWithKnownPassword(page, userMgmtPage, targetRole);
     console.log(`Using candidate email for ${targetRole} status testing: ${candidateEmail}`);
+
+    const { statusIdx, seatIdx, renewIdx } = await getTableColumnIndices(userMgmtPage);
 
     // Search for the candidate
     await userMgmtPage.searchUser(candidateEmail);
@@ -97,8 +129,8 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
 
     // Store their initial details (Seat Type and Renew status) before deactivating
     const cells = row.locator('td');
-    const initialSeatType = (await cells.nth(8).innerText()).trim(); // "Full" or "Read Only"
-    const initialRenewStatus = (await cells.nth(9).innerText()).trim(); // "Renewable" or "Non Renewable"
+    const initialSeatType = (await cells.nth(seatIdx).innerText()).trim(); // "Full" or "Read Only"
+    const initialRenewStatus = (await cells.nth(renewIdx).innerText()).trim(); // "Renewable" or "Non Renewable"
     console.log(`Initial details - Seat: ${initialSeatType}, Renew: ${initialRenewStatus}`);
 
     // Go to subscription tab and read initial available counts
@@ -143,7 +175,7 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     await userMgmtPage.searchUser(candidateEmail);
     await page.waitForTimeout(1500);
     const inactiveRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
-    await expect(inactiveRow.locator('td').nth(6)).toContainText('Inactive');
+    await expect(inactiveRow.locator('td').nth(statusIdx)).toContainText('Inactive');
     console.log('✓ Table correctly reflects Inactive status');
 
     // Verify available seat count increased on Subscription tab
@@ -223,7 +255,7 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     await userMgmtPage.searchUser(candidateEmail);
     await page.waitForTimeout(1500);
     const activeRow = userMgmtPage.tableBody.locator('tr').filter({ hasText: candidateEmail });
-    await expect(activeRow.locator('td').nth(6)).toContainText('Active');
+    await expect(activeRow.locator('td').nth(statusIdx)).toContainText('Active');
     console.log('✓ Table correctly reflects Active status');
 
     // Verify available seat count decreased on Subscription tab
@@ -259,7 +291,125 @@ async function runStatusToggleAndLoginVerification(page, userMgmtPage, targetRol
     await activeLoginContext.close();
 }
 
+// Helper to invite and register a fresh candidate user
+async function createFreshActiveUser(page, adminUserMgmtPage, caseId, namePrefix) {
+    const uid = Math.random().toString(36).substring(2, 7);
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const email = `ankitqa.iihglobal+${uid}${caseId.toLowerCase()}${randomNum}@gmail.com`;
+    console.log(`[Helper - ${caseId}] Inviting fresh candidate: ${email}`);
+
+    const inviteStartTime = new Date(Date.now() - 30000);
+    await adminUserMgmtPage.inviteMember({ email, accessType: 'Full Access' });
+    await adminUserMgmtPage.clickOkay();
+    await page.waitForTimeout(1500);
+
+    const inviteEmailBody = await pollEmail('Invited', inviteStartTime, email);
+    expect(inviteEmailBody).toBeTruthy();
+    const decodedInvite = decodeQuotedPrintable(inviteEmailBody);
+    const inviteUrlMatch = decodedInvite.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
+    expect(inviteUrlMatch).toBeTruthy();
+    const inviteUrl = inviteUrlMatch[0].replace(/[=]+$/, '').trim();
+
+    const regContext = await page.context().browser().newContext();
+    const regPage = await regContext.newPage();
+    const registerPageObj = new RegisterPage(regPage);
+    await regPage.goto(inviteUrl);
+    await regPage.waitForLoadState('load');
+
+    await registerPageObj.fillRegistrationForm({
+        name: `${namePrefix} ${randomNum}`,
+        password: 'Pa$$w0rd!',
+        confirmPassword: 'Pa$$w0rd!'
+    });
+    await registerPageObj.acceptTerms();
+    await expect(registerPageObj.submitButton).toBeEnabled();
+
+    const otpSentTime = new Date(Date.now() - 30000);
+    await registerPageObj.clickSubmit();
+
+    const otpBody = await pollEmail('Verification code', otpSentTime, email);
+    expect(otpBody).toBeTruthy();
+    const otpMatch = otpBody.match(/\b\d{6}\b/);
+    expect(otpMatch).toBeTruthy();
+    const otp = otpMatch[0];
+
+    await registerPageObj.fillOtp(otp);
+    await registerPageObj.clickSubmit();
+    await expect(regPage).toHaveURL(/.*\/adhoc-search/, { timeout: 30000 });
+    console.log(`[Helper - ${caseId}] Candidate registered and Active: ${email}`);
+    await regPage.close();
+    await regContext.close();
+
+    return email;
+}
+
+// Helper to promote a user to Admin role
+async function promoteUserToAdmin(page, adminUserMgmtPage, caseId, email, currentRole) {
+    if (currentRole === 'Admin') {
+        console.log(`[Helper - ${caseId}] Candidate is already Admin — skipping promotion`);
+        return 'Admin';
+    }
+    console.log(`[Helper - ${caseId}] Promoting candidate ${email} to Admin`);
+    await adminUserMgmtPage.goToUsersTab();
+    await adminUserMgmtPage.searchUser(email);
+    await page.waitForTimeout(1500);
+    const promoteRow = adminUserMgmtPage.tableBody.locator('tr').filter({ hasText: email });
+    await expect(promoteRow).toBeVisible({ timeout: 10000 });
+    await promoteRow.locator('button').last().click();
+    await adminUserMgmtPage.actionMenu_editItem.click();
+    const promoteModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
+    await expect(promoteModal).toBeVisible({ timeout: 8000 });
+    await adminUserMgmtPage.edit_roleSelect.click();
+    await page.waitForTimeout(1000);
+    await page.locator('li[role="option"]').filter({ hasText: /^Admin$/i }).click();
+    await page.waitForTimeout(1000);
+    await adminUserMgmtPage.edit_saveButton.click();
+    const promoteAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
+    await expect(promoteAlert).toBeVisible({ timeout: 10000 });
+    console.log(`[Helper - ${caseId}] Candidate ${email} promoted to Admin successfully`);
+    await adminUserMgmtPage.searchUser('');
+    await page.waitForTimeout(1000);
+    return 'Admin';
+}
+
+// Helper to delete a user to restore seats and clean up
+async function deleteUserCleanup(adminUserMgmtPage, caseId, email) {
+    console.log(`[Cleanup - ${caseId}] Deleting test user: ${email}`);
+    await adminUserMgmtPage.goToUsersTab();
+    await adminUserMgmtPage.searchUser(email);
+    await adminUserMgmtPage.page.waitForTimeout(2000);
+
+    const deleteRow = adminUserMgmtPage.tableBody.locator('tr').filter({ hasText: email });
+    console.log(`[Cleanup - ${caseId}] Checking row visibility...`);
+    const isVisible = await deleteRow.isVisible();
+    console.log(`[Cleanup - ${caseId}] Row visible: ${isVisible}`);
+
+    if (isVisible) {
+        console.log(`[Cleanup - ${caseId}] Clicking row action button...`);
+        await deleteRow.locator('button').last().click();
+        await adminUserMgmtPage.page.waitForTimeout(1000);
+
+        console.log(`[Cleanup - ${caseId}] Clicking delete item...`);
+        await adminUserMgmtPage.page.locator('[role="menuitem"]').filter({ hasText: /^delete$/i }).click();
+        await adminUserMgmtPage.page.waitForTimeout(1000);
+
+        console.log(`[Cleanup - ${caseId}] Clicking delete confirm...`);
+        await adminUserMgmtPage.delete_confirmButton.click();
+
+        console.log(`[Cleanup - ${caseId}] Waiting for delete snackbar...`);
+        const deleteAlert = adminUserMgmtPage.page.locator('.MuiSnackbar-root').filter({ hasText: /success|deleted/i }).first();
+        await expect(deleteAlert).toBeVisible({ timeout: 15000 });
+        console.log(`[Cleanup - ${caseId}] User ${email} deleted successfully`);
+    }
+    await adminUserMgmtPage.searchUser('');
+    await adminUserMgmtPage.page.waitForTimeout(1000);
+}
+
 module.exports = {
+    getTableColumnIndices,
     getCandidateWithKnownPassword,
-    runStatusToggleAndLoginVerification
+    runStatusToggleAndLoginVerification,
+    createFreshActiveUser,
+    promoteUserToAdmin,
+    deleteUserCleanup
 };
