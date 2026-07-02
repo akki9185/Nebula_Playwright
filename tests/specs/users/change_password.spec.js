@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { LoginPage, UserManagementPage, RegisterPage } = require('../../pages');
 const { pollEmail, decodeQuotedPrintable } = require('../../utils/common.util');
+const { createFreshActiveUser, promoteUserToAdmin, deleteUserCleanup } = require('../../utils/helpers.util');
 
 let registeredEmail = 'ankitqa.iihglobal+nt18x@gmail.com';
 let registeredPassword = 'Pa$$w0rd!';
@@ -11,125 +12,7 @@ let currentPassword = 'Pa$$w0rd!';
 let candidateRole = 'User';
 
 // ==========================================
-// 1. HELPERS
-// ==========================================
-
-// Helper to invite and register a fresh candidate user
-async function createFreshActiveUser(page, adminUserMgmtPage, caseId, namePrefix) {
-    const uid = Math.random().toString(36).substring(2, 7);
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const email = `ankitqa.iihglobal+${uid}${caseId.toLowerCase()}${randomNum}@gmail.com`;
-    console.log(`[Helper - ${caseId}] Inviting fresh candidate: ${email}`);
-
-    const inviteStartTime = new Date(Date.now() - 30000);
-    await adminUserMgmtPage.inviteMember({ email, accessType: 'Full Access' });
-    await adminUserMgmtPage.clickOkay();
-    await page.waitForTimeout(1500);
-
-    const inviteEmailBody = await pollEmail('Invited', inviteStartTime, email);
-    expect(inviteEmailBody).toBeTruthy();
-    const decodedInvite = decodeQuotedPrintable(inviteEmailBody);
-    const inviteUrlMatch = decodedInvite.match(/https?:\/\/[^\s"'<>]*\/register[^\s"'<>]*/);
-    expect(inviteUrlMatch).toBeTruthy();
-    const inviteUrl = inviteUrlMatch[0].replace(/[=]+$/, '').trim();
-
-    const regContext = await page.context().browser().newContext();
-    const regPage = await regContext.newPage();
-    const registerPageObj = new RegisterPage(regPage);
-    await regPage.goto(inviteUrl);
-    await regPage.waitForLoadState('load');
-
-    await registerPageObj.fillRegistrationForm({
-        name: `${namePrefix} ${randomNum}`,
-        password: 'Pa$$w0rd!',
-        confirmPassword: 'Pa$$w0rd!'
-    });
-    await registerPageObj.acceptTerms();
-    await expect(registerPageObj.submitButton).toBeEnabled();
-
-    const otpSentTime = new Date(Date.now() - 30000);
-    await registerPageObj.clickSubmit();
-
-    const otpBody = await pollEmail('Verification code', otpSentTime, email);
-    expect(otpBody).toBeTruthy();
-    const otpMatch = otpBody.match(/\b\d{6}\b/);
-    expect(otpMatch).toBeTruthy();
-    const otp = otpMatch[0];
-
-    await registerPageObj.fillOtp(otp);
-    await registerPageObj.clickSubmit();
-    await expect(regPage).toHaveURL(/.*\/adhoc-search/, { timeout: 30000 });
-    console.log(`[Helper - ${caseId}] Candidate registered and Active: ${email}`);
-    await regPage.close();
-    await regContext.close();
-
-    return email;
-}
-
-// Helper to promote a user to Admin role
-async function promoteUserToAdmin(page, adminUserMgmtPage, caseId, email) {
-    if (candidateRole === 'Admin') {
-        console.log(`[Helper - ${caseId}] Candidate is already Admin — skipping promotion`);
-        return;
-    }
-    console.log(`[Helper - ${caseId}] Promoting candidate ${email} to Admin`);
-    await adminUserMgmtPage.goToUsersTab();
-    await adminUserMgmtPage.searchUser(email);
-    await page.waitForTimeout(1500);
-    const promoteRow = adminUserMgmtPage.tableBody.locator('tr').filter({ hasText: email });
-    await expect(promoteRow).toBeVisible({ timeout: 10000 });
-    await promoteRow.locator('button').last().click();
-    await adminUserMgmtPage.actionMenu_editItem.click();
-    const promoteModal = page.locator('.MuiModal-root').filter({ hasText: 'Update Member' });
-    await expect(promoteModal).toBeVisible({ timeout: 8000 });
-    await adminUserMgmtPage.edit_roleSelect.click();
-    await page.waitForTimeout(1000);
-    await page.locator('li[role="option"]').filter({ hasText: /^Admin$/i }).click();
-    await page.waitForTimeout(1000);
-    await adminUserMgmtPage.edit_saveButton.click();
-    const promoteAlert = page.locator('.MuiSnackbar-root').filter({ hasText: /success|updated/i }).first();
-    await expect(promoteAlert).toBeVisible({ timeout: 10000 });
-    console.log(`[Helper - ${caseId}] Candidate ${email} promoted to Admin successfully`);
-    candidateRole = 'Admin';
-    await adminUserMgmtPage.searchUser('');
-    await page.waitForTimeout(1000);
-}
-
-// Helper to delete a user to restore seats and clean up
-async function deleteUserCleanup(adminUserMgmtPage, caseId, email) {
-    console.log(`[Cleanup - ${caseId}] Deleting test user: ${email}`);
-    await adminUserMgmtPage.goToUsersTab();
-    await adminUserMgmtPage.searchUser(email);
-    await adminUserMgmtPage.page.waitForTimeout(2000);
-
-    const deleteRow = adminUserMgmtPage.tableBody.locator('tr').filter({ hasText: email });
-    console.log(`[Cleanup - ${caseId}] Checking row visibility...`);
-    const isVisible = await deleteRow.isVisible();
-    console.log(`[Cleanup - ${caseId}] Row visible: ${isVisible}`);
-
-    if (isVisible) {
-        console.log(`[Cleanup - ${caseId}] Clicking row action button...`);
-        await deleteRow.locator('button').last().click();
-        await adminUserMgmtPage.page.waitForTimeout(1000);
-
-        console.log(`[Cleanup - ${caseId}] Clicking delete item...`);
-        await adminUserMgmtPage.page.locator('[role="menuitem"]').filter({ hasText: /^delete$/i }).click();
-        await adminUserMgmtPage.page.waitForTimeout(1000);
-
-        console.log(`[Cleanup - ${caseId}] Clicking delete confirm...`);
-        await adminUserMgmtPage.delete_confirmButton.click();
-
-        console.log(`[Cleanup - ${caseId}] Waiting for delete snackbar...`);
-        const deleteAlert = adminUserMgmtPage.page.locator('.MuiSnackbar-root').filter({ hasText: /success|deleted/i }).first();
-        await expect(deleteAlert).toBeVisible({ timeout: 15000 });
-        console.log(`[Cleanup - ${caseId}] User ${email} deleted successfully`);
-    }
-    await adminUserMgmtPage.searchUser('');
-    await adminUserMgmtPage.page.waitForTimeout(1000);
-}
-
-// ==========================================
-// 2. BEFORE HOOKS
+// 1. BEFORE HOOKS
 // ==========================================
 
 // Set up the shared candidate user once before any tests run
@@ -400,7 +283,7 @@ test('TC_UM_023: Verify Admin user password can be changed and login verified', 
     console.log('\n── TC_UM_023: Verify Change Password for Admin role user ──');
 
     const newPassword = 'AdminNew@Pa$$1';
-    await promoteUserToAdmin(page, userMgmtPage, 'TC23', candidateEmail);
+    candidateRole = await promoteUserToAdmin(page, userMgmtPage, 'TC23', candidateEmail, candidateRole);
 
     await userMgmtPage.searchUser(candidateEmail);
     await page.waitForTimeout(1500);
